@@ -1,0 +1,145 @@
+import type { MemoDto } from "@flaremo/contracts";
+import { expect, test } from "@playwright/test";
+
+function note(id: string, visibility: MemoDto["visibility"]): MemoDto {
+  return {
+    id,
+    name: `memos/${id}`,
+    creator: "users/local-owner",
+    content: `Space note ${id}`,
+    visibility,
+    state: "normal",
+    pinned: false,
+    payload: {},
+    create_time: "2026-09-01T00:00:00Z",
+    update_time: "2026-09-01T00:00:00Z",
+    display_time: "2026-09-01T00:00:00Z",
+    attachments: [],
+    can_manage: true,
+  };
+}
+
+test("switching spaces scopes the timeline request and keeps the URL restorable", async ({
+  page,
+}) => {
+  const requestedSpaces: string[] = [];
+  await page.route("**/api/app/memos*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    requestedSpaces.push(params.get("space") ?? "all");
+    const space = params.get("space");
+    const memos =
+      space === "team"
+        ? [note("team-only", "protected")]
+        : space === "personal"
+          ? [note("personal-only", "private")]
+          : [note("team-only", "protected"), note("personal-only", "private")];
+    await route.fulfill({ json: { memos } });
+  });
+  await page.goto("/");
+  // The mixed default is the pre-existing behavior: everything visible, no
+  // space param on the wire.
+  await expect(
+    page.locator("article").filter({ hasText: "Space note team-only" }),
+  ).toBeVisible();
+  await expect(
+    page.locator("article").filter({ hasText: "Space note personal-only" }),
+  ).toBeVisible();
+  expect(requestedSpaces.every((space) => space === "all")).toBe(true);
+
+  const spacesNav = page.getByRole("navigation", { name: /spaces|空间/i });
+  await spacesNav.getByRole("button", { name: /team space|团队空间/i }).click();
+  await expect(
+    page.locator("article").filter({ hasText: "Space note team-only" }),
+  ).toBeVisible();
+  await expect(
+    page.locator("article").filter({ hasText: "Space note personal-only" }),
+  ).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("space")).toBe("team");
+
+  // Filters compose with the space instead of being cleared by it.
+  await page.goto("/?space=team&q=team-only");
+  await expect(
+    page.locator("article").filter({ hasText: "Space note team-only" }),
+  ).toBeVisible();
+
+  await page.goto("/?space=personal");
+  await expect(
+    page.locator("article").filter({ hasText: "Space note personal-only" }),
+  ).toBeVisible();
+  await expect(
+    page.locator("article").filter({ hasText: "Space note team-only" }),
+  ).toHaveCount(0);
+
+  await spacesNav.getByRole("button", { name: /^all|全部$/i }).click();
+  await expect(
+    page.locator("article").filter({ hasText: "Space note team-only" }),
+  ).toBeVisible();
+  expect(new URL(page.url()).searchParams.has("space")).toBe(false);
+  expect(requestedSpaces.at(-1)).toBe("all");
+});
+
+test("the composer send target follows the active space", async ({ page }) => {
+  const created: string[] = [];
+  await page.route("**/api/app/memos*", async (route) => {
+    if (route.request().method() === "POST") {
+      const body = (await route.request().postDataJSON()) as {
+        content: string;
+        visibility: string;
+      };
+      created.push(`${body.content}|${body.visibility}`);
+      await route.fulfill({
+        status: 201,
+        json: {
+          id: "composed",
+          name: "memos/composed",
+          creator: "users/local-owner",
+          content: body.content,
+          visibility: body.visibility,
+          state: "normal",
+          pinned: false,
+          payload: {},
+          create_time: "2026-09-01T00:00:00Z",
+          update_time: "2026-09-01T00:00:00Z",
+          display_time: "2026-09-01T00:00:00Z",
+          attachments: [],
+          can_manage: true,
+        },
+      });
+      return;
+    }
+    const params = new URL(route.request().url()).searchParams;
+    const space = params.get("space");
+    const memos =
+      space === "team"
+        ? [note("team-only", "protected")]
+        : space === "personal"
+          ? [note("personal-only", "private")]
+          : [note("team-only", "protected"), note("personal-only", "private")];
+    await route.fulfill({ json: { memos } });
+  });
+
+  const composer = page.getByRole("textbox", { name: /new note|新笔记/i });
+
+  // Team space defaults the target to the team; personal space resets it.
+  await page.goto("/?space=team");
+  await expect(composer).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /send target|发送目标/i }),
+  ).toHaveText(/team|团队/i);
+  await composer.fill("Team-side note");
+  await page.getByRole("button", { name: /^(send|发送)$/i }).click();
+  await expect(composer).toHaveValue("");
+  expect(created).toEqual(["Team-side note|protected"]);
+
+  await page.goto("/?space=personal");
+  await expect(
+    page.getByRole("button", { name: /send target|发送目标/i }),
+  ).toHaveText(/personal|个人/i);
+  await composer.fill("Personal-side note");
+  await page.getByRole("button", { name: /^(send|发送)$/i }).click();
+  await expect(composer).toHaveValue("");
+  expect(created).toEqual([
+    "Team-side note|protected",
+    "Personal-side note|private",
+  ]);
+});

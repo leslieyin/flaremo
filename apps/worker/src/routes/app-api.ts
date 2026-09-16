@@ -1,0 +1,697 @@
+import {
+  calendarViewQuerySchema,
+  createMemoryFromMemoSchema,
+  createMemoSchema,
+  dailyReviewQuerySchema,
+  FLAREMO_API_VERSION,
+  listMemosQuerySchema,
+  listNotificationsQuerySchema,
+  memoSpaceSchema,
+  memoStatsQuerySchema,
+  randomMemoQuerySchema,
+  relatedMemosQuerySchema,
+  renameTagRequestSchema,
+  semanticMemoSearchQuerySchema,
+  updateMemoSchema,
+  updateNotificationSchema,
+  walkNextQuerySchema,
+} from "@flaremo/contracts";
+import type { FlareMoDb, MemoRow, UserRow } from "@flaremo/db";
+import {
+  assertMonthlyQuota,
+  canEditMemo,
+  canGovernMemo,
+  canManageVoiceService,
+  createMemo,
+  createMemoryFromMemo,
+  createMemoryFromMemoInputToWrite,
+  deletePushSubscription,
+  deleteTag,
+  estimateTokenCount,
+  getBranding,
+  getCalendarView,
+  getFlaremoUserNames,
+  getMemoById,
+  getMemoStats,
+  getRandomMemo,
+  getSemanticSearchMemos,
+  getViewerTeamInfo,
+  getWalkNextMemo,
+  incrementUsageCounter,
+  isInstanceOwner,
+  listAttachmentsForMemos,
+  listDailyReviewMemos,
+  listMemos,
+  listPushSubscriptions,
+  listRelatedMemos,
+  listTagHierarchy,
+  listUserNotifications,
+  moveMemoToTrash,
+  NotFoundError,
+  type PushKeys,
+  renameTag,
+  reportPlanUsage,
+  reportVectorUsage,
+  savePushSubscription,
+  semanticSearchMemos,
+  type UserNotificationDto,
+  updateMemo,
+  updateUserNotification,
+  ValidationError,
+} from "@flaremo/domain";
+import {
+  memosToListResponse,
+  memoToDto,
+  parseMemosResourceName,
+} from "@flaremo/memos";
+import { zValidator } from "@hono/zod-validator";
+import { Hono } from "hono";
+import { z } from "zod";
+import { getRequestContext, type HonoBindings } from "../context";
+import {
+  createEmbeddingProvider,
+  createVectorIndex,
+  memoSearchNamespaces,
+  resolveEmbeddingConfig,
+} from "../embedding";
+import { jsonError } from "../http";
+import { getAuthUserCached } from "../identity-cache";
+import { buildMemoContext } from "../memo-context";
+import { hardDeleteMemoWithAttachments } from "../memo-hard-delete";
+
+export const appApi = new Hono<HonoBindings>();
+
+/** Both VAPID keys must be present for push to be enabled. */
+function resolvePushKeys(env: HonoBindings["Bindings"]): PushKeys | null {
+  const publicKey = env.FLAREMO_VAPID_PUBLIC_KEY?.trim();
+  const privateKey = env.FLAREMO_VAPID_PRIVATE_KEY?.trim();
+  if (!publicKey || !privateKey) return null;
+  return { publicKey, privateKey };
+}
+
+const FLAREMO_RELEASES_URL =
+  "https://github.com/realchendahuang/FlareMo/releases";
+const FLAREMO_UPDATE_GUIDE_URL =
+  "https://github.com/realchendahuang/FlareMo/blob/main/docs/update.md";
+
+appApi.get("/me", async (c) => {
+  try {
+    const { db, user, authUserId, authUser } = await getRequestContext(c);
+    // Browser sessions carry the auth identity inside the (session-cached)
+    // Better Auth session, so no extra D1 lookup is needed; non-browser
+    // credentials fall back to the TTL-cached row read.
+    const resolvedAuthUser =
+      authUser ?? (await getAuthUserCached(db, authUserId));
+    return c.json({
+      id: user.id,
+      role: user.teamRole,
+      is_instance_owner: isInstanceOwner(user),
+      can_manage_voice_service: canManageVoiceService(user),
+      status: user.status,
+      name: user.name,
+      email: resolvedAuthUser?.email ?? user.email,
+      username: resolvedAuthUser?.username ?? user.id.replace(/^users\//, ""),
+      // Drives the workspace sidebar: the team space entry renders only when
+      // the viewer holds a membership, labelled with the organization name.
+      team: await getViewerTeamInfo(db, authUserId),
+    });
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get("/health", async (c) => {
+  try {
+    const { db } = await getRequestContext(c);
+    const repository = normalizeGitHubRepository(
+      c.env.FLAREMO_DEPLOY_REPOSITORY,
+    );
+    const branding = await getBranding(db);
+    return c.json({
+      ok: true,
+      product: branding.product,
+      version: FLAREMO_API_VERSION,
+      update_repository: repository,
+      update_workflow_url: repository
+        ? `https://github.com/${repository}/actions/workflows/flaremo-update.yml`
+        : null,
+      releases_url: FLAREMO_RELEASES_URL,
+      update_guide_url: FLAREMO_UPDATE_GUIDE_URL,
+      // Memo vector partition layout (see docs/vector-namespace-design.md).
+      team_layout:
+        (c.env.FLAREMO_VECTORIZE_TEAM_LAYOUT ?? "team").trim() === "solo"
+          ? "solo"
+          : "team",
+      // Non-secret capability flags the UI needs (e.g. to explain that the
+      // forgot-password flow is closed when no email provider is configured).
+      email_provider: (c.env.FLAREMO_EMAIL_PROVIDER ?? "none").trim(),
+    });
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get("/memos", zValidator("query", listMemosQuerySchema), async (c) => {
+  try {
+    const { db, user, memoFilterScanLimit } = await getRequestContext(c);
+    const result = await listMemos(db, user, c.req.valid("query"), {
+      celScanLimit: memoFilterScanLimit,
+    });
+    const [creatorNames, attachments] = await Promise.all([
+      getFlaremoUserNames(
+        db,
+        result.memos.map((memo) => memo.userId),
+      ),
+      listAttachmentsForMemos(
+        db,
+        user,
+        result.memos.map((memo) => memo.id),
+      ),
+    ]);
+    const attachmentsByMemo = new Map<string, (typeof attachments)[number][]>();
+    for (const attachment of attachments) {
+      if (!attachment.memoId) continue;
+      const current = attachmentsByMemo.get(attachment.memoId) ?? [];
+      current.push(attachment);
+      attachmentsByMemo.set(attachment.memoId, current);
+    }
+    return c.json(
+      memosToListResponse({
+        ...result,
+        attachmentsByMemo,
+        creatorNames,
+        user,
+      }),
+    );
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get("/stats", zValidator("query", memoStatsQuerySchema), async (c) => {
+  try {
+    const { db, user } = await getRequestContext(c);
+    return c.json(
+      await getMemoStats(db, user, c.req.valid("query"), {
+        space: c.req.valid("query").space,
+      }),
+    );
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get(
+  "/calendar",
+  zValidator("query", calendarViewQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      return c.json(await getCalendarView(db, user, c.req.valid("query")));
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get(
+  "/search/semantic",
+  zValidator("query", semanticMemoSearchQuerySchema),
+  async (c) => {
+    try {
+      const { db, user, limits, userLimits } = await getRequestContext(c);
+      const provider = createEmbeddingProvider(c.env);
+      const index = createVectorIndex(c.env, "memo");
+      if (!provider || !index) {
+        return c.json({ memos: [], degraded: true });
+      }
+      const query = c.req.valid("query");
+      await assertMonthlyQuota(
+        db,
+        limits.semanticSearchQueriesPerMonth,
+        "search_queries",
+        "Monthly semantic search quota exceeded",
+        { userLimits, userId: user.id },
+      );
+      const hits = await semanticSearchMemos(
+        db,
+        user,
+        {
+          provider,
+          index,
+          namespaces: memoSearchNamespaces(c.env, user, query.space),
+        },
+        query.q,
+        query.limit,
+      );
+      c.executionCtx.waitUntil(
+        Promise.all([
+          incrementUsageCounter(
+            db,
+            user,
+            "queried_dims",
+            provider.dimensions,
+          ).catch(() => undefined),
+          incrementUsageCounter(db, user, "search_queries", 1).catch(
+            () => undefined,
+          ),
+          incrementUsageCounter(
+            db,
+            user,
+            "embedding_tokens",
+            estimateTokenCount([query.q]),
+          ).catch(() => undefined),
+        ]),
+      );
+      const ordered = await getSemanticSearchMemos(
+        db,
+        user,
+        hits.map((hit) => hit.id),
+      );
+      const creatorNames = await getFlaremoUserNames(
+        db,
+        ordered.map((memo) => memo.userId),
+      );
+      return c.json({
+        memos: ordered.map((memo) => ({
+          ...memoToDto(memo, user, creatorNames.get(memo.userId)),
+          // Same server-derived rule as list responses (canEditMemo), so
+          // semantic results keep their manage affordances.
+          can_manage: canEditMemo(user, memo),
+          can_govern: canGovernMemo(user, memo),
+        })),
+        degraded: false,
+      });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+// Web Push: expose the VAPID public key and manage the caller's subscriptions.
+appApi.get("/push/config", async (c) => {
+  try {
+    const { user } = await getRequestContext(c);
+    const keys = resolvePushKeys(c.env);
+    return c.json({
+      public_key: keys ? keys.publicKey : null,
+      subscriptions: (
+        await listPushSubscriptions((await getRequestContext(c)).db, user.id)
+      ).length,
+    });
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.post(
+  "/push/subscribe",
+  zValidator(
+    "json",
+    z.object({
+      endpoint: z.string().url().max(1024),
+      keys: z.object({
+        p256dh: z.string().min(1).max(256),
+        auth: z.string().min(1).max(256),
+      }),
+    }),
+  ),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const keys = resolvePushKeys(c.env);
+      if (!keys)
+        return jsonError(c, new ValidationError("Push not configured"));
+      const body = c.req.valid("json");
+      await savePushSubscription(db, user, {
+        endpoint: body.endpoint,
+        p256dh: body.keys.p256dh,
+        auth: body.keys.auth,
+      });
+      return c.json({ ok: true });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.post(
+  "/push/unsubscribe",
+  zValidator(
+    "json",
+    z.object({
+      endpoint: z.string().url().max(1024),
+    }),
+  ),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      await deletePushSubscription(db, user, c.req.valid("json").endpoint);
+      return c.json({ ok: true });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get("/usage/vector", async (c) => {
+  try {
+    const { db, user, limits, userLimits } = await getRequestContext(c);
+    const config = resolveEmbeddingConfig(c.env);
+    const storedLimit = Number.parseInt(
+      c.env.FLAREMO_VECTORIZE_STORED_LIMIT?.trim() || "5000000",
+      10,
+    );
+    const queriedLimit = Number.parseInt(
+      c.env.FLAREMO_VECTORIZE_QUERIED_LIMIT?.trim() || "30000000",
+      10,
+    );
+    const report = await reportVectorUsage(
+      db,
+      user,
+      {
+        provider: config.provider,
+        model: config.model,
+        dimensions: config.dimensions,
+        storedLimit: Number.isFinite(storedLimit) ? storedLimit : 5_000_000,
+        queriedLimit: Number.isFinite(queriedLimit) ? queriedLimit : 30_000_000,
+      },
+      {
+        memosIndex: createVectorIndex(c.env, "memo"),
+        memoriesIndex: createVectorIndex(c.env, "memory"),
+      },
+    );
+    const plan = await reportPlanUsage(db, limits, {
+      userId: user.id,
+      userLimits,
+    });
+    return c.json({ ...report, plan });
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get(
+  "/review/daily",
+  zValidator("query", dailyReviewQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const rows = await listDailyReviewMemos(db, user, c.req.valid("query"));
+      return c.json({
+        memos: await serializeMemosWithAttachments(db, user, rows),
+      });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get(
+  "/review/random",
+  zValidator("query", randomMemoQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const memo = await getRandomMemo(
+        db,
+        user,
+        parseExcludeParam(c.req.valid("query").exclude),
+      );
+      const [serialized] = memo
+        ? await serializeMemosWithAttachments(db, user, [memo])
+        : [null];
+      return c.json({ memo: serialized ?? null });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get(
+  "/review/walk",
+  zValidator("query", walkNextQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const query = c.req.valid("query");
+      const { memo, via } = await getWalkNextMemo(
+        db,
+        user,
+        query.memoId,
+        parseExcludeParam(query.exclude),
+      );
+      const [serialized] = memo
+        ? await serializeMemosWithAttachments(db, user, [memo])
+        : [null];
+      return c.json({ memo: serialized ?? null, via: memo ? via : null });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get(
+  "/memos/:id/related",
+  zValidator("query", relatedMemosQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const related = await listRelatedMemos(
+        db,
+        user,
+        `memos/${c.req.param("id")}`,
+        c.req.valid("query"),
+      );
+      const serialized = await serializeMemosWithAttachments(
+        db,
+        user,
+        related.map((entry) => entry.memo),
+      );
+      const byId = new Map(serialized.map((memo) => [memo.name, memo]));
+      return c.json({
+        memos: related.flatMap((entry) => {
+          const memo = byId.get(entry.memo.id);
+          return memo
+            ? [
+                {
+                  ...memo,
+                  shared_tags: entry.sharedTags,
+                  via_relation: entry.viaRelation,
+                },
+              ]
+            : [];
+        }),
+      });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get("/memos/:id", async (c) => {
+  try {
+    const context = await getRequestContext(c);
+    return c.json(
+      await buildMemoContext(context, `memos/${c.req.param("id")}`),
+    );
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.post("/memos", zValidator("json", createMemoSchema), async (c) => {
+  try {
+    const { db, user, userLimits } = await getRequestContext(c);
+    const memo = await createMemo(db, user, c.req.valid("json"), {
+      userLimits,
+      userId: user.id,
+    });
+    return c.json(memoToDto(memo, user), 201);
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.patch("/memos/:id", zValidator("json", updateMemoSchema), async (c) => {
+  try {
+    const { db, user } = await getRequestContext(c);
+    const memo = await updateMemo(
+      db,
+      user,
+      `memos/${c.req.param("id")}`,
+      c.req.valid("json"),
+    );
+    return c.json(memoToDto(memo, user));
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.post(
+  "/memos/:id/memory",
+  zValidator("json", createMemoryFromMemoSchema),
+  async (c) => {
+    try {
+      const { db, user, userLimits } = await getRequestContext(c);
+      const memoId = `memos/${c.req.param("id")}`;
+      const memo = await getMemoById(db, user, memoId);
+      if (!memo) throw new NotFoundError("Memo not found");
+      const result = await createMemoryFromMemo(
+        db,
+        user,
+        { type: "user" },
+        createMemoryFromMemoInputToWrite(c.req.valid("json"), memo.content),
+        memoId,
+        { userLimits, userId: user.id },
+      );
+      return c.json(result, result.duplicate ? 200 : 201);
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.delete("/memos/:id", async (c) => {
+  try {
+    const { db, user } = await getRequestContext(c);
+    const id = `memos/${c.req.param("id")}`;
+    if (c.req.query("hard") === "true") {
+      await hardDeleteMemoWithAttachments(c.env, db, user, id);
+      return c.json({ ok: true });
+    }
+    const memo = await moveMemoToTrash(db, user, id);
+    return c.json(memoToDto(memo, user));
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.get(
+  "/tags",
+  zValidator("query", z.object({ space: memoSpaceSchema.optional() })),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      return c.json({
+        tags: await listTagHierarchy(db, user, {
+          space: c.req.valid("query").space,
+        }),
+      });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.get(
+  "/notifications",
+  zValidator("query", listNotificationsQuerySchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const query = c.req.valid("query");
+      const result = await listUserNotifications(db, user, {
+        pageSize: query.page_size,
+        pageToken: query.page_token,
+      });
+      return c.json({
+        notifications: result.notifications.map(appNotificationToDto),
+        ...(result.nextPageToken
+          ? { next_page_token: result.nextPageToken }
+          : {}),
+      });
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.patch(
+  "/notifications/:id",
+  zValidator("json", updateNotificationSchema),
+  async (c) => {
+    try {
+      const { db, user } = await getRequestContext(c);
+      const { status } = c.req.valid("json");
+      const updated = await updateUserNotification(
+        db,
+        user,
+        `${user.id}/notifications/${c.req.param("id")}`,
+        status,
+        ["status"],
+      );
+      return c.json(appNotificationToDto(updated));
+    } catch (error) {
+      return jsonError(c, error);
+    }
+  },
+);
+
+appApi.patch("/tags", zValidator("json", renameTagRequestSchema), async (c) => {
+  try {
+    const { db, user } = await getRequestContext(c);
+    return c.json(await renameTag(db, user, c.req.valid("json")));
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+appApi.delete("/tags", async (c) => {
+  try {
+    const { db, user } = await getRequestContext(c);
+    const tag = c.req.query("tag") ?? "";
+    return c.json(await deleteTag(db, user, { tag }));
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+function normalizeGitHubRepository(value: string): string | null {
+  const repository = value.trim();
+  return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
+    ? repository
+    : null;
+}
+
+function appNotificationToDto(notification: UserNotificationDto) {
+  return {
+    name: notification.name,
+    type: notification.type,
+    status: notification.status,
+    memo: notification.memo,
+    memo_snippet: notification.memoSnippet,
+    create_time: notification.createTime,
+  };
+}
+
+async function serializeMemosWithAttachments(
+  db: FlareMoDb,
+  user: UserRow,
+  rows: MemoRow[],
+) {
+  if (rows.length === 0) return [];
+  const attachments = await listAttachmentsForMemos(
+    db,
+    user,
+    rows.map((row) => row.id),
+  );
+  const attachmentsByMemo = new Map<string, (typeof attachments)[number][]>();
+  for (const attachment of attachments) {
+    if (!attachment.memoId) continue;
+    const current = attachmentsByMemo.get(attachment.memoId) ?? [];
+    current.push(attachment);
+    attachmentsByMemo.set(attachment.memoId, current);
+  }
+  return memosToListResponse({ memos: rows, attachmentsByMemo, user }).memos;
+}
+
+function parseExcludeParam(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .slice(0, 500)
+    .map((entry) => parseMemosResourceName(entry));
+}

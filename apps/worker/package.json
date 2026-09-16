@@ -1,0 +1,38 @@
+{
+  "name": "@flaremo/worker",
+  "license": "AGPL-3.0-only",
+  "version": "0.20.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --config ../../wrangler.jsonc --local",
+    "deploy": "wrangler deploy --config ../../wrangler.jsonc",
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "1.6.25",
+    "@better-auth/drizzle-adapter": "1.6.25",
+    "@bufbuild/protobuf": "2.12.0",
+    "@flaremo/contracts": "workspace:*",
+    "@flaremo/db": "workspace:*",
+    "@flaremo/domain": "workspace:*",
+    "@flaremo/memos": "workspace:*",
+    "@hono/zod-validator": "^0.7.6",
+    "better-auth": "1.6.25",
+    "drizzle-orm": "^0.45.1",
+    "hono": "^4.13.5",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260708.1",
+    "@connectrpc/connect": "2.1.1",
+    "@connectrpc/connect-web": "2.1.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.114.0"
+  }
+}

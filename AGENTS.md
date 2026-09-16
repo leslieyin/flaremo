@@ -1,0 +1,127 @@
+# FlareMo Agent 指南
+
+这份文件给 Codex、Claude Code、Cursor Agent 等自动化编码工具使用。目标是让 Agent 能稳定理解、修改、验证和部署 FlareMo。
+
+## 项目定位
+
+FlareMo 是一个 Cloudflare 原生的个人知识管理系统：
+
+- 前端和 API 运行在 Cloudflare Workers。
+- D1 是笔记、用户、关系、分享、设置和附件元数据的事实源。
+- R2 只存附件、导出包和对象文件。
+- `/api/v1/*` 提供 Memos 兼容 API 子集。
+- 应用层使用 Better Auth：浏览器使用 HttpOnly cookie session，脚本、Memos-compatible 客户端和 MCP 使用可撤销的 `memos_pat_` Personal Access Token。
+- Cloudflare Access 是可选的外层防线和迁移期防线；启用时，客户端仍必须通过 Access policy，并在应用层提供 cookie session 或 `memos_pat_`。
+- 当前默认是一套单用户 bootstrap；禁止公开 signup，但认证表和 `auth_user_links` 为未来多用户保留扩展边界。
+
+不要把 FlareMo 改成 VPS、Docker、Postgres 或 Node 常驻服务，也不要另造一套绕开 Better Auth 的登录、Bearer token 或共享密码方案。
+
+## 常用命令
+
+```bash
+pnpm install
+pnpm check
+pnpm test
+pnpm build
+pnpm verify
+pnpm backup:drill
+```
+
+本地开发：
+
+```bash
+pnpm migrate:local
+pnpm dev
+```
+
+生产部署：
+
+```bash
+pnpm verify
+pnpm deploy:dry-run
+pnpm deploy
+```
+
+只验证 Cloudflare 配置和打包：
+
+```bash
+pnpm deploy:dry-run
+```
+
+## 修改规则
+
+- 改数据库结构时，先改 `packages/db/src/schema.ts`，再运行 `pnpm db:generate`。
+- 生成的 SQL migration 必须提交到 `migrations/`。
+- 自动部署会先迁移再发布 Worker；migration 必须向后兼容上一正式版本，破坏性收缩要拆到后续 release。
+- 业务访问数据必须通过 Drizzle 和 domain services，不要在路由里堆散装 SQL。
+- `/api/v1/*` 是兼容层；新增字段或行为时同步检查 `packages/memos` 和 OpenAPI。
+- `/api/app/*` 可以服务前端体验，但必须复用同一套 domain services。
+- 前端只展示已经接上后端能力的入口；不要放未实现功能的按钮、菜单或文案。
+- 应用层认证边界是 Better Auth；不要新增绕开 Better Auth 的登录页、共享密码或第二套应用令牌。Cloudflare Access 可以作为可选外层防线，但不能被误当成应用用户身份映射。
+- 凭据相关的 Origin 契约必须保持不变：cookie session 的状态变更请求（包括 `POST`、`PATCH`、`DELETE` 等非安全方法）必须携带并精确匹配 `FLAREMO_PUBLIC_URL` 或 `FLAREMO_TRUSTED_ORIGINS`；PAT 请求可以省略 Origin，但一旦携带也必须精确匹配同一 allowlist，否则返回 `403`。不要用 wildcard、`Referer` 或 Cloudflare Access headers 替代 Origin 校验。
+- 不得把 `BETTER_AUTH_SECRET`、`FLAREMO_BOOTSTRAP_SECRET`、初始密码、cookie 或 `memos_pat_` 明文写进代码、文档、migration、issue、PR、日志或聊天；生产 secret 只能通过 Wrangler secret 或 Cloudflare 控制台安全配置。
+- `Temp/` 是参考仓库目录，不能提交。
+- 使用 GitHub Actions 时只允许两类 workflow：`.github/workflows/ci.yml`（瘦 CI：format / lint / typecheck / 单元测试，兕底与外部 PR 门禁）和 `.github/workflows/flaremo-update.yml`（只服务自部署用户自己的部署仓库，同步上游 Release 并创建升级 PR）。永远不用 GitHub Actions 做生产部署器（no CI/CD），不跑 E2E 进 CI；完整门禁 `pnpm verify` 仍由维护者发版前本地执行。不重新启用 Dependabot 或 Workers Builds。
+- 改路由、守卫、导航行为时必须同步补 e2e 用例（2026-09-10 事故教训：v0.15.3 守卫重构后门禁拦不住匿名首页无限加载，因为 e2e 只覆盖了深度链接没覆盖 `/`；门禁的有效性 = 测试覆盖率）。
+
+## Issue 和 PR 流程
+
+`main` 永远代表可发布状态。不要直接在 `main` 上做功能或文档任务；除非是维护者明确要求的紧急修正，否则都按 issue 分支和 PR 流程走。
+
+标准流程：
+
+```text
+issue -> branch -> commit -> push -> PR -> squash merge -> delete branch -> update local main
+```
+
+操作规则：
+
+- 开始任务前先切回最新 `main`：`git switch main && git pull --ff-only`。
+- 从 `main` 创建短生命周期分支。推荐前缀：`docs/*`、`test/*`、`feat/*`、`fix/*`、`ops/*`、`codex/*`。
+- 一个 PR 只处理一个 issue，或一组强相关 issue；不要把无关清理混进同一个 PR。
+- PR body 必须写验证命令和 issue 关系。能完整关闭时写 `Closes #N`；只能推进上下文时写 `Refs #N`。
+- 合并使用 squash merge；合并后删除远端任务分支。
+- 合并后本地执行 `git switch main && git pull --ff-only`，确认 `main` 已包含合并提交。
+
+验证强度按改动类型选择：
+
+- 纯文档、拼写、链接：`pnpm format:check`。
+- 部署、Wrangler、D1、R2、Access 相关文档或配置：`pnpm format:check` 和 `pnpm deploy:dry-run`。
+- API、domain service、Memos 兼容、测试夹具：`pnpm verify`。
+- UI 改动：`pnpm verify`，再用 `pnpm dev` 检查桌面和移动端。
+- 真实 Cloudflare 资源演练：`pnpm verify`、`pnpm deploy:dry-run`，再执行对应的远端 D1/R2/Access 验证。
+
+## 验收口径
+
+改动完成前至少跑：
+
+```bash
+pnpm verify
+```
+
+涉及部署、Wrangler、D1、R2 或 Access 的改动，还要跑：
+
+```bash
+pnpm deploy:dry-run
+```
+
+涉及 UI 的改动，要启动本地服务检查桌面和移动端：
+
+```bash
+pnpm dev
+```
+
+## 文档入口
+
+- `README.md`：项目入口和部署入口。
+- `docs/tech-stack.md`：确定的技术栈。
+- `docs/architecture-notes.md`：架构和兼容边界。
+- `docs/deploy.md`：人类部署指南。
+- `docs/agent-deploy.md`：Agent 部署 runbook。
+- `docs/release.md`：发版规则。
+- `docs/maintenance.md`：维护、备份和恢复。
+- `docs/memos-compatibility.md`：Memos 兼容矩阵。
+- `docs/memos-ecosystem.md`：第三方客户端、认证方式和真实兼容验证记录。
+- `docs/design-system.md`：Ember 设计系统（色彩、字体、动效、组件和文案约定）。
+- `docs/semantic-search.md`：语义搜索、Vectorize 和 Workers AI 的边界。
+- `ROADMAP.md`：稳定方向和公开任务池。

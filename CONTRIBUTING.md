@@ -1,0 +1,88 @@
+# Contributing
+
+欢迎提交 issue 和 PR。FlareMo 是 Cloudflare 原生项目，改动要尊重当前架构边界。
+
+## 开发
+
+```bash
+pnpm install
+pnpm migrate:local
+pnpm dev
+```
+
+推荐 Node.js 22+ 和仓库声明的 pnpm 版本：
+
+```bash
+corepack enable
+pnpm install
+```
+
+## 提交前
+
+```bash
+pnpm format:check
+pnpm verify
+```
+
+涉及 Cloudflare 配置、D1、R2 或部署脚本时：
+
+```bash
+pnpm deploy:dry-run
+```
+
+仓库带一个瘦 CI（`.github/workflows/ci.yml`：format / lint / typecheck / 单元测试，约 3 分钟），作为兜底与外部 PR 的强制门禁。它不跑 E2E、不部署；完整门禁 `pnpm verify`（含 Playwright E2E）仍由 PR 作者在本地跑完并在 PR 里写明结果。仓库中的 `flaremo-update.yml` 只服务自部署用户自己的部署仓库，用于把上游 Release 准备成升级 PR。
+
+如需自动修复格式：
+
+```bash
+pnpm format
+```
+
+## PR 要求
+
+- 描述用户可见变化。
+- 说明是否影响 D1 migration。
+- 说明是否影响 Memos 兼容 API。
+- 说明是否影响 Cloudflare Access、D1、R2 或部署流程。
+- 附上验证命令和结果。
+
+## 许可
+
+- FlareMo 以 AGPL-3.0 授权。提交 issue、PR 或其他贡献即表示同意将其按 AGPL-3.0 授权给本项目与所有下游使用者。
+- 贡献者同时授予项目版权持有者一项许可：可以在 AGPL-3.0 之外（含商业托管版本）使用、再授权这些贡献。
+- 明确不提交的权利（如受雇作品归属）请先在 issue 中说明，再开始实现。
+
+## 架构边界
+
+- D1 是主数据事实源。
+- R2 只存附件、导出包和对象文件。
+- Memos 兼容层是 adapter，不是第二套业务实现。
+- 生产访问由 Cloudflare Access 处理。
+- 不新增未实现功能入口。
+
+## Issue
+
+Bug report 请包含：
+
+- 版本或 commit。
+- 部署方式。
+- Cloudflare 资源：Workers、D1、R2、Access 是否启用。
+- 复现步骤。
+- 期望结果和实际结果。
+- 相关日志或截图。
+
+Memos 兼容问题请说明客户端、请求路径、请求体和返回体。
+
+## 分支和发布
+
+- `main` 永远代表可发布状态。
+- 功能开发使用 `feat/*` 或 `codex/*` 分支。
+- 每个 release 必须有 Git tag、GitHub Release、`CHANGELOG.md` 条目和升级说明。
+- 维护者发布前执行 `pnpm verify`、`pnpm deploy:dry-run` 和 `pnpm backup:drill`。
+
+## 社区和支持
+
+- 支持入口见 `SUPPORT.md`。
+- 安全问题见 `SECURITY.md`。
+- 社区行为准则见 `CODE_OF_CONDUCT.md`。
+- 第三方 Memos 客户端兼容记录见 `docs/memos-ecosystem.md`。
