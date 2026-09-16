@@ -2,7 +2,7 @@
 
 这份文件给 Codex、Claude Code、Cursor Agent 等自动化编码工具使用。目标是让 Agent 能稳定理解、修改、验证和部署 FlareMo。
 
-## 项目定位
+## 项目定位1
 
 FlareMo 是一个 Cloudflare 原生的个人知识管理系统：
 
