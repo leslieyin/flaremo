@@ -31,10 +31,12 @@ jobs:
       REQUESTED_VERSION: ${{ inputs.tag }}
       BASE_BRANCH: ${{ github.event.repository.default_branch }}
       SYNCED_MARKER: .github/flaremo-upstream-tag
-      # 同步后需要保留的本地文件（每行一个，勿加引号）
-      KEEP_FILES: |
+      # 同步后需要保留的本地路径（文件或目录，每行一个，勿加引号）。
+      # .github/workflows 必须整体保留：GITHUB_TOKEN 永远没有 workflows 权限，
+      # 只要 push 的 diff 触及该目录下任何文件（新增/修改/删除都算），GitHub 会拒绝整个 push。
+      KEEP_PATHS: |
         wrangler.json
-        .github/workflows/sync-upstream.yml
+        .github/workflows
     steps:
       - name: Check out deployment repository
         uses: actions/checkout@v6
@@ -74,21 +76,23 @@ jobs:
           git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
           git fetch --no-tags upstream "refs/tags/${TAG}:refs/tags/${TAG}"
 
+          # 备份需要保留的本地路径（保留相对目录结构）
           mkdir -p "${RUNNER_TEMP}/keep"
-          while IFS= read -r file; do
-            [[ -z "${file}" ]] && continue
-            mkdir -p "${RUNNER_TEMP}/keep/$(dirname "${file}")"
-            cp "${file}" "${RUNNER_TEMP}/keep/${file}"
-          done <<< "${KEEP_FILES}"
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            cp -r --parents "${path}" "${RUNNER_TEMP}/keep"
+          done <<< "${KEEP_PATHS}"
 
           # 用上游该 Release 的整棵树替换索引与工作区（未跟踪文件不受影响）
           git read-tree -u --reset "refs/tags/${TAG}"
 
-          while IFS= read -r file; do
-            [[ -z "${file}" ]] && continue
-            mkdir -p "$(dirname "${file}")"
-            cp "${RUNNER_TEMP}/keep/${file}" "${file}"
-          done <<< "${KEEP_FILES}"
+          # 再放回本地路径；目录先删掉上游带来的那份，保证 .github/workflows 内容不受影响
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            rm -rf "${path}"
+            mkdir -p "$(dirname "${path}")"
+            cp -r "${RUNNER_TEMP}/keep/${path}" "${path}"
+          done <<< "${KEEP_PATHS}"
 
           # 账号专属配置：以上游新配置为底，回填本仓库的部署键
           node -e '
@@ -107,12 +111,12 @@ jobs:
             fs.writeFileSync("wrangler.json", JSON.stringify(config, null, 2) + "\n");
           '
 
-          # 本 workflow 已取代官方的 PR 式更新流程，移除以免两套机制互相触发
-          rm -f .github/workflows/flaremo-update.yml
-
           printf '%s\n' "${TAG}" > "${SYNCED_MARKER}"
 
+          # 兜底：无论发生什么，.github/workflows 下的改动都不进 commit
           git add -A
+          git reset -q -- .github/workflows
+
           if git diff --cached --quiet; then
             echo "与目标版本无差异，无需提交。"
             exit 0
