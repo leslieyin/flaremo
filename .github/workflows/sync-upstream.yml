@@ -1,0 +1,127 @@
+# 把上游 realchendahuang/FlareMo 的最新稳定 Release 整树同步到本部署仓库。
+# 同步 commit 推到 main 后，由 Cloudflare Workers Builds 自动构建、执行 D1 migration 并发布。
+# 账号专属配置（D1 id 等）保存在 wrangler.json 里，同步时以「上游新配置为底 + 回填本地账号键」保留。
+name: Sync upstream release
+
+on:
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "上游 release tag（例：v0.21.0）；留空表示最新稳定版"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flaremo-sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository != 'realchendahuang/FlareMo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UPSTREAM_REPOSITORY: realchendahuang/FlareMo
+      GH_TOKEN: ${{ github.token }}
+      REQUESTED_VERSION: ${{ inputs.tag }}
+      BASE_BRANCH: ${{ github.event.repository.default_branch }}
+      SYNCED_MARKER: .github/flaremo-upstream-tag
+      # 同步后需要保留的本地文件（每行一个，勿加引号）
+      KEEP_FILES: |
+        wrangler.json
+        .github/workflows/sync-upstream.yml
+    steps:
+      - name: Check out deployment repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target release
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${REQUESTED_VERSION}"
+          if [[ -z "${tag}" ]]; then
+            tag="$(gh api "repos/${UPSTREAM_REPOSITORY}/releases/latest" --jq .tag_name)"
+          fi
+          if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "非法的 release tag：${tag}" >&2
+            exit 1
+          fi
+
+          synced="$(cat "${SYNCED_MARKER}" 2>/dev/null || true)"
+          echo "目标版本：${tag}；本仓库已同步：${synced:-（尚无记录）}"
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          if [[ "${synced}" == "${tag}" ]]; then
+            echo "skip=true" >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Mirror upstream release tree
+        if: steps.target.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git remote add upstream "https://github.com/${UPSTREAM_REPOSITORY}.git"
+          git fetch --no-tags upstream "refs/tags/${TAG}:refs/tags/${TAG}"
+
+          mkdir -p "${RUNNER_TEMP}/keep"
+          while IFS= read -r file; do
+            [[ -z "${file}" ]] && continue
+            mkdir -p "${RUNNER_TEMP}/keep/$(dirname "${file}")"
+            cp "${file}" "${RUNNER_TEMP}/keep/${file}"
+          done <<< "${KEEP_FILES}"
+
+          # 用上游该 Release 的整棵树替换索引与工作区（未跟踪文件不受影响）
+          git read-tree -u --reset "refs/tags/${TAG}"
+
+          while IFS= read -r file; do
+            [[ -z "${file}" ]] && continue
+            mkdir -p "$(dirname "${file}")"
+            cp "${RUNNER_TEMP}/keep/${file}" "${file}"
+          done <<< "${KEEP_FILES}"
+
+          # 账号专属配置：以上游新配置为底，回填本仓库的部署键
+          node -e '
+            const fs = require("node:fs");
+            const keepDir = process.env.RUNNER_TEMP + "/keep/";
+            const local = JSON.parse(fs.readFileSync(keepDir + "wrangler.json", "utf8"));
+            const config = JSON.parse(fs.readFileSync("wrangler.json", "utf8"));
+            const databaseId = (local.d1_databases ?? [])[0]?.database_id;
+            const previewBucket = (local.r2_buckets ?? [])[0]?.preview_bucket_name;
+            if (databaseId && config.d1_databases?.[0]) config.d1_databases[0].database_id = databaseId;
+            if (previewBucket && config.r2_buckets?.[0]) config.r2_buckets[0].preview_bucket_name = previewBucket;
+            for (const key of ["FLAREMO_DEPLOY_REPOSITORY", "FLAREMO_TRUSTED_ORIGINS", "FLAREMO_PUBLIC_URL"]) {
+              const value = local.vars?.[key];
+              if (value && config.vars) config.vars[key] = value;
+            }
+            fs.writeFileSync("wrangler.json", JSON.stringify(config, null, 2) + "\n");
+          '
+
+          # 本 workflow 已取代官方的 PR 式更新流程，移除以免两套机制互相触发
+          rm -f .github/workflows/flaremo-update.yml
+
+          printf '%s\n' "${TAG}" > "${SYNCED_MARKER}"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "与目标版本无差异，无需提交。"
+            exit 0
+          fi
+          git diff --cached --stat | tail -3
+
+          git -c user.name="flaremo-sync[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "chore: sync ${UPSTREAM_REPOSITORY} ${TAG}"
+
+          git push origin "HEAD:${BASE_BRANCH}"
+          echo "已推送 ${TAG} 到 ${BASE_BRANCH}，Cloudflare Workers Builds 将自动构建并发布。"
