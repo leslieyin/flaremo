@@ -12,11 +12,23 @@ export const taskActivityActionSchema = z.enum([
   "created",
   "updated",
   "status_changed",
-  "deleted",
   "reordered",
 ]);
 
 export const taskActorTypeSchema = z.enum(["user", "agent"]);
+
+// `due_at` is a local calendar day, matching what the UI date input emits and
+// what every downstream consumer (calendar aggregate, overdue reminders)
+// compares as a plain string.
+export const taskDueDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD date.");
+
+const dateKey = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD date.");
 
 // --- DTO --------------------------------------------------------------------
 
@@ -27,13 +39,19 @@ export const projectDtoSchema = z.object({
   status: projectStatusSchema,
   task_count_total: z.number().int(),
   task_count_open: z.number().int(),
+  // Set while the project sits in the recycle bin; null means live.
+  deleted_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
 
 export const taskDtoSchema = z.object({
   id: z.string(),
-  project_id: z.string(),
+  // Null for tasks that are not assigned to any project yet ("全部任务" view).
+  project_id: z.string().nullable(),
+  // Memo the task was upgraded from (memo checkbox → task); null unless the
+  // task carries the bridge. Read-time validation, no FK on purpose.
+  source_memo_id: z.string().nullable(),
   title: z.string(),
   notes: z.string().nullable(),
   status: taskStatusSchema,
@@ -41,6 +59,8 @@ export const taskDtoSchema = z.object({
   due_at: z.string().nullable(),
   sort_order: z.number().int(),
   completed_at: z.string().nullable(),
+  // Set while the task sits in the recycle bin; null means live.
+  deleted_at: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -74,26 +94,36 @@ export const updateProjectSchema = z
 
 export const listProjectsQuerySchema = z.object({
   status: projectStatusSchema.optional(),
+  // Name substring filter (LIKE %query%).
+  query: z.string().trim().max(200).optional(),
+  // Recycle bin: include soft-deleted projects.
+  include_deleted: z.coerce.boolean().default(false),
 });
 
 export const createTaskSchema = z.object({
-  project_id: z.string().trim().min(1).max(256),
+  // Optional: tasks can live outside any project (unassigned).
+  project_id: z.string().trim().min(1).max(256).optional(),
   title: z.string().trim().min(1).max(2_000),
   notes: z.string().trim().max(20_000).optional(),
   status: taskStatusSchema.default("todo"),
   priority: taskPrioritySchema.default("none"),
-  due_at: z.string().trim().max(64).optional(),
+  due_at: taskDueDateSchema.optional(),
+  // Memo resource name (`memos/<id>`) the task was upgraded from. Only
+  // meaningful for PAT/agent flows today.
+  source_memo_id: z.string().trim().min(1).max(256).optional(),
 });
 
 export const updateTaskSchema = z
   .object({
-    project_id: z.string().trim().min(1).max(256).optional(),
+    // null unassigns the task from its project.
+    project_id: z.string().trim().min(1).max(256).nullable().optional(),
     title: z.string().trim().min(1).max(2_000).optional(),
     notes: z.string().trim().max(20_000).nullable().optional(),
     status: taskStatusSchema.optional(),
     priority: taskPrioritySchema.optional(),
-    due_at: z.string().trim().max(64).nullable().optional(),
+    due_at: taskDueDateSchema.nullable().optional(),
     sort_order: z.number().int().optional(),
+    source_memo_id: z.string().trim().min(1).max(256).nullable().optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,
@@ -103,11 +133,25 @@ export const updateTaskSchema = z
 export const listTasksQuerySchema = z.object({
   project_id: z.string().trim().max(256).optional(),
   status: taskStatusSchema.optional(),
+  priority: taskPrioritySchema.optional(),
+  due_from: dateKey.optional(),
+  due_to: dateKey.optional(),
+  // Recycle bin: include soft-deleted tasks.
+  include_deleted: z.coerce.boolean().default(false),
+  // Cursor pagination, mirroring the memos list contract.
+  page_size: z.coerce.number().int().min(1).max(100).default(30),
+  page_token: z.string().optional(),
+});
+
+export const listTasksResponseSchema = z.object({
+  tasks: z.array(taskDtoSchema),
+  next_page_token: z.string().optional(),
 });
 
 export const reorderTasksSchema = z.object({
   project_id: z.string().trim().min(1).max(256),
-  task_ids: z.array(z.string().trim().min(1).max(256)),
+  // Bounded so a single request cannot fan out into an unbounded write batch.
+  task_ids: z.array(z.string().trim().min(1).max(256)).max(200),
 });
 
 // --- Types ------------------------------------------------------------------
@@ -127,5 +171,6 @@ export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;
 // can omit `status`/`priority`; the HTTP layer applies the schema defaults.
 export type CreateTaskInput = z.input<typeof createTaskSchema>;
 export type UpdateTaskInput = z.input<typeof updateTaskSchema>;
-export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+export type ListTasksQuery = z.input<typeof listTasksQuerySchema>;
+export type ListTasksResponse = z.infer<typeof listTasksResponseSchema>;
 export type ReorderTasksInput = z.infer<typeof reorderTasksSchema>;

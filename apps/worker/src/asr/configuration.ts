@@ -2,20 +2,38 @@ import type { FlareMoDb } from "@flaremo/db";
 import { readVoiceService } from "@flaremo/domain";
 import { z } from "zod";
 import type { FlareMoEnv } from "../env";
-import { getConfiguredAsr } from "./provider";
+import type { BatchAsrProvider } from "./batch";
+import { getConfiguredAsr, getConfiguredBatchAsr } from "./provider";
+import type { StreamingAsrProvider } from "./types";
 
 export const voiceCredentialsSchema = z
   .object({
-    provider: z.enum(["tencent", "dashscope"]),
+    provider: z.enum(["tencent", "dashscope", "volcengine", "minimax"]),
     model: z.string().trim().max(128).default(""),
     appId: z.string().trim().max(128).default(""),
     secretId: z.string().trim().max(256).default(""),
     secretKey: z.string().trim().max(1024).default(""),
     apiKey: z.string().trim().max(1024).default(""),
+    volcAppId: z.string().trim().max(128).default(""),
+    volcAccessToken: z.string().trim().max(1024).default(""),
+    volcBoostingTable: z.string().trim().max(128).default(""),
+    volcCorrectTable: z.string().trim().max(128).default(""),
+    // Optional MiniMax endpoint override (domestic default, international
+    // alternative). Non-secret, stored alongside the sealed key.
+    minimaxBaseUrl: z.string().trim().max(256).default(""),
   })
   .strict();
 export type VoiceCredentials = z.infer<typeof voiceCredentialsSchema>;
 const aad = new TextEncoder().encode("flaremo:voice-service:v1");
+
+/** Either kind of configured voice service (rollout §3: single provider). */
+export type VoiceService =
+  | {
+      kind: "streaming";
+      id: "dashscope" | "tencent" | "volcengine";
+      provider: StreamingAsrProvider;
+    }
+  | { kind: "batch"; id: "minimax"; provider: BatchAsrProvider };
 
 function hasEncryptionKey(secret: string | undefined) {
   return Boolean(secret && secret.length >= 32);
@@ -81,23 +99,55 @@ export async function openVoiceCredentials(
   );
 }
 
-export function configuredVoice(value: VoiceCredentials) {
-  return getConfiguredAsr({
+export function configuredVoice(value: VoiceCredentials): VoiceService | null {
+  if (value.provider === "minimax") {
+    const batch = getConfiguredBatchAsr({
+      FLAREMO_ASR_PROVIDER: value.provider,
+      FLAREMO_ASR_MINIMAX_API_KEY: value.apiKey,
+      FLAREMO_ASR_MINIMAX_BASE_URL: value.minimaxBaseUrl,
+    });
+    return batch
+      ? { kind: "batch", id: batch.id, provider: batch.provider }
+      : null;
+  }
+  const streaming = getConfiguredAsr({
     FLAREMO_ASR_PROVIDER: value.provider,
     FLAREMO_ASR_MODEL: value.model,
     FLAREMO_ASR_TENCENT_APP_ID: value.appId,
     FLAREMO_ASR_TENCENT_SECRET_ID: value.secretId,
     FLAREMO_ASR_TENCENT_SECRET_KEY: value.secretKey,
     FLAREMO_ASR_DASHSCOPE_API_KEY: value.apiKey,
+    FLAREMO_ASR_VOLCENGINE_APP_ID: value.volcAppId,
+    FLAREMO_ASR_VOLCENGINE_ACCESS_TOKEN: value.volcAccessToken,
+    FLAREMO_ASR_VOLCENGINE_BOOSTING_TABLE: value.volcBoostingTable,
+    FLAREMO_ASR_VOLCENGINE_CORRECT_TABLE: value.volcCorrectTable,
   });
+  return streaming
+    ? { kind: "streaming", id: streaming.id, provider: streaming.provider }
+    : null;
 }
 
 // Deployment-level environment credentials win when they fully resolve; the
 // database copy (saved from the settings UI) applies otherwise. Callers pass
 // the request-scoped database handle.
-export async function resolveVoiceService(env: FlareMoEnv, db: FlareMoDb) {
-  const fromEnv = getConfiguredAsr(env);
-  if (fromEnv) return fromEnv;
+export async function resolveVoiceService(
+  env: FlareMoEnv,
+  db: FlareMoDb,
+): Promise<VoiceService | null> {
+  const fromEnvStreaming = getConfiguredAsr(env);
+  if (fromEnvStreaming)
+    return {
+      kind: "streaming",
+      id: fromEnvStreaming.id,
+      provider: fromEnvStreaming.provider,
+    };
+  const fromEnvBatch = getConfiguredBatchAsr(env);
+  if (fromEnvBatch)
+    return {
+      kind: "batch",
+      id: fromEnvBatch.id,
+      provider: fromEnvBatch.provider,
+    };
   const row = await readVoiceService(db);
   if (!row) return null;
   if (!row.enabled || !row.ciphertext) return null;

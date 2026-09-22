@@ -83,6 +83,23 @@ export const LOCALE_LABELS: Record<SupportedLocale, string> = {
   ar: "العربية",
 };
 
+/**
+ * `dir` attribute for a locale. Arabic is the only RTL locale; the SSG shell
+ * and the client-side locale sync must agree on this value.
+ */
+export function localeDirection(locale: Locale): "ltr" | "rtl" {
+  return normalizeLocale(locale) === "ar" ? "rtl" : "ltr";
+}
+
+/**
+ * BCP-47 tag written to `<html lang>`. zh is advertised as zh-CN (the SSG shell
+ * uses the same mapping); `:lang(zh)` still matches by prefix per RFC 4647.
+ */
+export function localeHtmlLang(locale: Locale): string {
+  const norm = normalizeLocale(locale);
+  return norm === "zh" ? "zh-CN" : norm;
+}
+
 export function getLocaleFromPath(pathname: string): SupportedLocale {
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length > 0) {

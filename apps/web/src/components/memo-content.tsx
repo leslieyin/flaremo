@@ -1,8 +1,19 @@
-import { type ImgHTMLAttributes, memo, type ReactNode, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { ListPlusIcon } from "lucide-react";
+import {
+  Children,
+  type ImgHTMLAttributes,
+  isValidElement,
+  memo,
+  type ReactElement,
+  type ReactNode,
+  useState,
+} from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "@/i18n";
 import { createSlugger } from "@/lib/markdown-outline";
+import { memoTaskLines } from "@/lib/memo-tasks";
 import {
   isTimestampHref,
   parseTimestampHref,
@@ -67,11 +78,35 @@ function MarkdownImage({ alt, node: _node, ...props }: MarkdownImageProps) {
   );
 }
 
+/** D2: the read view's GFM checkboxes are live when a caller opts in. */
+type TaskInteraction = {
+  /** `lineIndex` is a 0-based index into the raw Markdown source. */
+  onToggleTask?: (lineIndex: number, checked: boolean) => void;
+  /** Upgrades a to-do line into a FlareMo task linked back to this memo. */
+  onConvertTask?: (lineIndex: number, text: string) => void;
+};
+
+/** The disabled checkbox remark-gfm renders as a list item's first child. */
+function isCheckbox(
+  child: ReactNode,
+): child is ReactElement<{ type?: string; checked?: boolean }> {
+  return (
+    isValidElement(child) &&
+    child.type === "input" &&
+    (child.props as { type?: string }).type === "checkbox"
+  );
+}
+
 export const MemoContent = memo(function MemoContent({
   className,
   content,
   onTimestampClick,
   withHeadingIds = false,
+  interactiveTaskLists = false,
+  resolveImageDimensions,
+  onToggleTask,
+  onConvertTask,
+  rehypePlugins,
 }: {
   className?: string;
   content: string;
@@ -86,11 +121,31 @@ export const MemoContent = memo(function MemoContent({
    * under StrictMode's double render.
    */
   withHeadingIds?: boolean;
-}) {
+  /**
+   * Renders task-list checkboxes enabled so a click can be intercepted
+   * upstream (the card layer rewrites the Markdown). Without it they stay
+   * disabled decorations, as remark-gfm emits them.
+   */
+  interactiveTaskLists?: boolean;
+  /**
+   * Maps a body image's src to its attachment's intrinsic dimensions so the
+   * rendered box is reserved before the bytes load (no layout shift).
+   */
+  resolveImageDimensions?: (
+    src: string,
+  ) => { width: number; height: number } | undefined;
+  /**
+   * Article-surface extras (Shiki highlighting) passed straight through to
+   * the markdown processor. Memo cards never set it.
+   */
+  rehypePlugins?: import("unified").Pluggable[];
+} & TaskInteraction) {
+  const { t } = useI18n();
   // Transcript bodies rewrite clock markers into `#flaremo-t=` links before
   // parsing; prose without markers passes through untouched.
   const body = onTimestampClick ? toTimestampHrefMarkdown(content) : content;
   const slug = withHeadingIds ? createSlugger() : undefined;
+  const interactiveTasks = Boolean(onToggleTask || onConvertTask);
 
   const heading = (Tag: HeadingTag) =>
     function Heading({
@@ -136,6 +191,17 @@ export const MemoContent = memo(function MemoContent({
               );
             }
 
+            if (href?.startsWith("/memo/")) {
+              return (
+                <Link
+                  className="font-medium text-foreground underline decoration-brand-500/50 underline-offset-2 transition-colors hover:text-brand-600 hover:decoration-brand-500"
+                  to={href}
+                >
+                  {children}
+                </Link>
+              );
+            }
+
             const external =
               href?.startsWith("http://") || href?.startsWith("https://");
             return (
@@ -155,8 +221,97 @@ export const MemoContent = memo(function MemoContent({
           h4: heading("h4"),
           h5: heading("h5"),
           h6: heading("h6"),
-          img: MarkdownImage,
+          input({ node: _node, disabled: _disabled, ...props }) {
+            if (!interactiveTaskLists) {
+              return <input {...props} disabled type="checkbox" />;
+            }
+            // The card layer owns toggling (event delegation on the
+            // container); readOnly keeps React's controlled-input contract
+            // while the click handler prevents the default flip.
+            return <input {...props} readOnly type="checkbox" />;
+          },
+          img({ node: _node, ...props }) {
+            const dimensions = resolveImageDimensions?.(
+              typeof props.src === "string" ? props.src : "",
+            );
+            return (
+              <MarkdownImage
+                {...props}
+                {...(dimensions
+                  ? {
+                      width: dimensions.width,
+                      height: dimensions.height,
+                      style: {
+                        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+                      },
+                    }
+                  : {})}
+              />
+            );
+          },
+          li({ className, node, children, ...props }) {
+            if (!interactiveTasks) {
+              return (
+                <li {...props} className={className}>
+                  {children}
+                </li>
+              );
+            }
+            const items = Children.toArray(children);
+            const checkboxIndex = items.findIndex(isCheckbox);
+            if (checkboxIndex < 0) {
+              return (
+                <li {...props} className={className}>
+                  {children}
+                </li>
+              );
+            }
+            const checkbox = items[checkboxIndex] as ReactElement<{
+              checked?: boolean;
+            }>;
+            const body = items.filter((_, index) => index !== checkboxIndex);
+            const checked = Boolean(checkbox.props.checked);
+            // The hast node carries its source position; the 1-based line is
+            // exactly the `- [ ]` line for a GFM task item.
+            const lineIndex = (node?.position?.start.line ?? 1) - 1;
+            return (
+              <li {...props} className={cn("group/task", className)}>
+                {onToggleTask ? (
+                  <input
+                    aria-label={
+                      checked ? t("memo.taskMarkTodo") : t("memo.taskMarkDone")
+                    }
+                    checked={checked}
+                    type="checkbox"
+                    onChange={(event) =>
+                      onToggleTask(lineIndex, event.target.checked)
+                    }
+                  />
+                ) : (
+                  checkbox
+                )}
+                {body}
+                {onConvertTask && (
+                  <button
+                    aria-label={t("memo.convertToTask")}
+                    className="mx-1 inline-flex size-5 items-center justify-center rounded-md align-middle text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 motion-safe:transition-opacity group-hover/task:opacity-100"
+                    title={t("memo.convertToTask")}
+                    type="button"
+                    onClick={() => {
+                      const text = memoTaskLines(content).find(
+                        (line) => line.lineIndex === lineIndex,
+                      )?.text;
+                      if (text) onConvertTask(lineIndex, text);
+                    }}
+                  >
+                    <ListPlusIcon className="size-3.5" />
+                  </button>
+                )}
+              </li>
+            );
+          },
         }}
+        rehypePlugins={rehypePlugins}
         remarkPlugins={[remarkGfm]}
         skipHtml
       >

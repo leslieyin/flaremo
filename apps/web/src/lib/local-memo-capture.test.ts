@@ -36,11 +36,23 @@ describe("local memo capture", () => {
     ).toBe(true);
     expect(
       isMemoCaptureEmpty({
+        title: "Draft Article",
         content: "   ",
         visibility: "private",
         tags: [],
-        files: [{} as File],
+        files: [],
       }),
     ).toBe(false);
+  });
+
+  it("preserves title in capture input", () => {
+    const capture = createMemoCaptureInput({
+      title: "My Article Title",
+      content: "Hello",
+      visibility: "public",
+      tags: [],
+      files: [],
+    });
+    expect(capture.title).toBe("My Article Title");
   });
 });

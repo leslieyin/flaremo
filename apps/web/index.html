@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="light dark" />
     <!-- Updated by the bootstrap script below and by ThemeProvider so the
          browser chrome / iOS status bar tracks the resolved theme. -->
-    <meta data-flaremo-theme-color name="theme-color" content="#17191d" />
+    <meta data-flaremo-theme-color name="theme-color" content="#faf9f7" />
     <link
       data-dark-href="/brand/flaremo-mark-dark-320.png"
       data-flaremo-favicon
@@ -43,6 +43,28 @@
         if (themeColor) {
           themeColor.content = resolved === "dark" ? "#0d0c0b" : "#faf9f7";
         }
+      } catch {}
+      // Mirror I18nProvider's resolution (stored preference, else navigator)
+      // before first paint: `lang` picks the CJK font family per script, and
+      // `dir` keeps Arabic from painting LTR and then flipping on hydration.
+      // Keep this list in sync with the Locale union in src/i18n.tsx.
+      try {
+        const locales = ["zh-CN", "en-US", "ja", "fr", "es", "ko", "ru", "ar"];
+        const base = (value) => value.toLowerCase().split("-")[0];
+        const stored = localStorage.getItem("flaremo.locale");
+        let locale = locales.includes(stored) ? stored : null;
+        if (!locale) {
+          for (const candidate of navigator.languages || []) {
+            const match = locales.find((l) => base(l) === base(candidate));
+            if (match) {
+              locale = match;
+              break;
+            }
+          }
+        }
+        locale = locale || "en-US";
+        document.documentElement.lang = locale;
+        document.documentElement.dir = locale === "ar" ? "rtl" : "ltr";
       } catch {}
     </script>
   </head>

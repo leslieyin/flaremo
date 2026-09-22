@@ -148,7 +148,7 @@ function ThemeToggle({ className }: { className?: string }) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-40 p-1.5">
-        <DropdownMenuLabel className="px-2 py-1 text-[10px] text-fog font-medium">
+        <DropdownMenuLabel className="px-2 py-1 text-xs text-fog font-medium">
           外观 / Theme
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

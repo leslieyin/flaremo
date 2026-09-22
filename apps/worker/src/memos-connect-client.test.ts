@@ -3,12 +3,8 @@ import {
   createConnectTransport,
   createGrpcWebTransport,
 } from "@connectrpc/connect-web";
-import {
-  applyFlaremoMigrations,
-  createDb,
-  memosNotifications,
-} from "@flaremo/db";
-import { Miniflare } from "miniflare";
+import { createDb, memosNotifications } from "@flaremo/db";
+import type { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import app from "./index";
 import { MemoService } from "./memos-generated/api/v1/memo_service_pb";
@@ -16,6 +12,7 @@ import {
   UserNotification_Status,
   UserService,
 } from "./memos-generated/api/v1/user_service_pb";
+import { createTestRuntime } from "./test-support/runtime";
 
 let runtime: Miniflare;
 let env: Env;
@@ -29,7 +26,11 @@ const TEST_PASSWORD = "official-connect-client-password-never-production-123";
 
 describe("official generated Connect clients", () => {
   beforeEach(async () => {
-    runtime = await createTestRuntime();
+    ({ runtime, env } = await createTestRuntime({
+      name: "flaremo-official-client",
+      authSecret: TEST_AUTH_SECRET,
+      bootstrapSecret: TEST_BOOTSTRAP_SECRET,
+    }));
     accessToken = await signIn();
   });
 
@@ -148,35 +149,6 @@ describe("official generated Connect clients", () => {
     expect(secret.signingSecret).toMatch(/^whsec_/);
   });
 });
-
-async function createTestRuntime() {
-  const created = new Miniflare({
-    script: "export default { fetch() { return new Response('ok') } }",
-    modules: true,
-    compatibilityDate: "2026-07-10",
-    compatibilityFlags: ["nodejs_compat"],
-    d1Databases: { DB: `flaremo-official-client-${crypto.randomUUID()}` },
-    r2Buckets: {
-      ATTACHMENTS: `flaremo-official-client-attachments-${crypto.randomUUID()}`,
-    },
-  });
-  const db = await created.getD1Database("DB");
-  await applyFlaremoMigrations(db);
-  runtime = created;
-  env = {
-    DB: db,
-    ATTACHMENTS: await created.getR2Bucket("ATTACHMENTS"),
-    ASSETS: {
-      fetch: async () => new Response("asset", { status: 200 }),
-    } as Fetcher,
-    FLAREMO_SINGLE_USER_EMAIL: "owner@example.com",
-    FLAREMO_SINGLE_USER_NAME: "Owner",
-    FLAREMO_PUBLIC_URL: "http://flaremo.test",
-    BETTER_AUTH_SECRET: TEST_AUTH_SECRET,
-    FLAREMO_BOOTSTRAP_SECRET: TEST_BOOTSTRAP_SECRET,
-  } as Env;
-  return created;
-}
 
 async function signIn() {
   const bootstrap = await app.fetch(

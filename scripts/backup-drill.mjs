@@ -67,7 +67,14 @@ step("verify D1 dump exists", () => {
     throw new Error("D1 dump does not look like a SQL backup.");
   }
   for (const table of RESTORE_TABLES) {
-    if (!dump.includes(`CREATE TABLE \`${table}\``)) {
+    // wrangler d1 export quotes table names inconsistently: usually with
+    // backticks, but some tables (e.g. memos_notifications, tasks) come out
+    // double-quoted with IF NOT EXISTS. Accept either spelling — a table is
+    // only missing if neither appears.
+    const present =
+      dump.includes(`CREATE TABLE \`${table}\``) ||
+      dump.includes(`CREATE TABLE IF NOT EXISTS "${table}"`);
+    if (!present) {
       throw new Error(`D1 dump is missing the ${table} table.`);
     }
   }

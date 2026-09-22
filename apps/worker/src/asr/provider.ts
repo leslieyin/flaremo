@@ -1,7 +1,9 @@
 import type { FlareMoEnv } from "../env";
 import { createDashscopeProvider } from "./dashscope";
+import { createMinimaxProvider, normalizeMinimaxBaseUrl } from "./minimax";
 import { createTencentProvider } from "./tencent";
 import type { StreamingAsrProvider } from "./types";
+import { createVolcengineProvider } from "./volcengine";
 
 type AsrEnv = Pick<
   FlareMoEnv,
@@ -13,6 +15,13 @@ type AsrEnv = Pick<
   | "FLAREMO_ASR_TENCENT_HOTWORD_LIST"
   | "FLAREMO_ASR_TENCENT_SECRET_ID"
   | "FLAREMO_ASR_TENCENT_SECRET_KEY"
+  | "FLAREMO_ASR_VOLCENGINE_ACCESS_TOKEN"
+  | "FLAREMO_ASR_VOLCENGINE_APP_ID"
+  | "FLAREMO_ASR_VOLCENGINE_BOOSTING_TABLE"
+  | "FLAREMO_ASR_VOLCENGINE_CORRECT_TABLE"
+  | "FLAREMO_ASR_VOLCENGINE_RESOURCE_ID"
+  | "FLAREMO_ASR_MINIMAX_API_KEY"
+  | "FLAREMO_ASR_MINIMAX_BASE_URL"
 >;
 
 function normalizeHotwordId(value: string | undefined) {
@@ -46,9 +55,12 @@ function normalizeHotwordList(value: string | undefined) {
 
 // Configuration readiness only: this does not call a paid API or verify quota.
 export function getConfiguredAsr(env: AsrEnv): {
-  id: "dashscope" | "tencent";
+  id: "dashscope" | "tencent" | "volcengine";
   provider: StreamingAsrProvider;
 } | null {
+  // MiniMax is batch-only (record-then-transcribe); it never serves the
+  // live /capture WebSocket (see getConfiguredBatchAsr).
+  if ((env.FLAREMO_ASR_PROVIDER ?? "dashscope") === "minimax") return null;
   const model = env.FLAREMO_ASR_MODEL?.trim() || undefined;
   switch (env.FLAREMO_ASR_PROVIDER ?? "dashscope") {
     case "dashscope": {
@@ -86,7 +98,56 @@ export function getConfiguredAsr(env: AsrEnv): {
         }),
       };
     }
+    case "volcengine": {
+      const appId = env.FLAREMO_ASR_VOLCENGINE_APP_ID?.trim();
+      const accessToken = env.FLAREMO_ASR_VOLCENGINE_ACCESS_TOKEN?.trim();
+      if (!appId || !accessToken) return null;
+      const resourceId =
+        env.FLAREMO_ASR_VOLCENGINE_RESOURCE_ID?.trim() || undefined;
+      if (resourceId && !/^[a-z0-9.]+$/.test(resourceId)) return null;
+      const boostingTable =
+        env.FLAREMO_ASR_VOLCENGINE_BOOSTING_TABLE?.trim() || undefined;
+      const correctTable =
+        env.FLAREMO_ASR_VOLCENGINE_CORRECT_TABLE?.trim() || undefined;
+      if (boostingTable && !/^[A-Za-z0-9_-]{1,128}$/.test(boostingTable))
+        return null;
+      if (correctTable && !/^[A-Za-z0-9_-]{1,128}$/.test(correctTable))
+        return null;
+      return {
+        id: "volcengine",
+        provider: createVolcengineProvider({
+          appId,
+          accessToken,
+          resourceId: resourceId ?? "volc.bigasr.sauc.duration",
+          boostingTable,
+          correctTable,
+        }),
+      };
+    }
     default:
       return null;
   }
+}
+
+// Batch (MiniMax) configuration readiness, mirroring getConfiguredAsr: the
+// API key is required, the base URL is optional (defaults to the domestic
+// endpoint). No paid API is called.
+export function getConfiguredBatchAsr(env: AsrEnv): {
+  id: "minimax";
+  provider: ReturnType<typeof createMinimaxProvider>;
+} | null {
+  if ((env.FLAREMO_ASR_PROVIDER ?? "dashscope") !== "minimax") return null;
+  const apiKey = env.FLAREMO_ASR_MINIMAX_API_KEY?.trim();
+  if (!apiKey) return null;
+  // An unparsable base URL is a broken configuration, not a usable provider.
+  if (normalizeMinimaxBaseUrl(env.FLAREMO_ASR_MINIMAX_BASE_URL) === null)
+    return null;
+  const baseUrl = env.FLAREMO_ASR_MINIMAX_BASE_URL?.trim();
+  return {
+    id: "minimax",
+    provider: createMinimaxProvider({
+      apiKey,
+      ...(baseUrl ? { baseUrl } : {}),
+    }),
+  };
 }

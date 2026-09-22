@@ -59,7 +59,7 @@ export function DocsDetailPage() {
             if (docsInGroup.length === 0) return null;
             return (
               <div key={group.id} className="space-y-1.5">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-fog px-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-fog px-2">
                   {group.label}
                 </div>
                 <ul className="space-y-0.5">
@@ -87,8 +87,15 @@ export function DocsDetailPage() {
         </nav>
       </aside>
 
-      {/* 文档主体内容 */}
-      <article className="min-w-0">
+      {/* 文档主体内容。
+          正文只有中文原文与英文两个来源，而页面 <html lang> 跟随界面语言
+          （ja/ko/fr/…）。把正文自身的语言标出来，字形与读屏才按内容走：
+          中文原文用中文字形，英文译文用拉丁字形——否则日/韩/阿语页面上的
+          英文正文会被 Han 字体族接管，中文原文又会被日韩字面重塑。 */}
+      <article
+        className="min-w-0"
+        lang={locale === "zh" || doc.fallbackFromZh ? "zh-CN" : "en-US"}
+      >
         {doc.fallbackFromZh ? (
           <div className="mb-6 rounded-xl border border-signal/30 bg-signal/10 px-4 py-3 text-sm text-signal-ink">
             {locale === "zh"

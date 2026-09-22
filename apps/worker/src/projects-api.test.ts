@@ -113,6 +113,39 @@ describe("FlareMo projects API", () => {
       await fetchApp("http://flaremo.test/api/app/projects"),
     );
     expect(remaining.projects).toHaveLength(0);
+
+    // DELETE is a soft delete: the bin query still sees the project (with its
+    // stamp), and restore brings both the project and its task back.
+    const binned = await json<{
+      projects: Array<{ id: string; deleted_at: string }>;
+    }>(
+      await fetchApp("http://flaremo.test/api/app/projects?include_deleted=1"),
+    );
+    expect(binned.projects.map((project) => project.id)).toContain(
+      created.project.id,
+    );
+    expect(binned.projects[0]?.deleted_at).not.toBeNull();
+    // The binned task is invisible to live reads but present in the bin query.
+    const taskGone = await fetchApp(
+      `http://flaremo.test/api/app/tasks/${bareTaskId(task.task.id)}`,
+    );
+    expect(taskGone.status).toBe(404);
+    const binnedTasks = await json<{
+      tasks: Array<{ id: string; deleted_at: string }>;
+    }>(await fetchApp("http://flaremo.test/api/app/tasks?include_deleted=1"));
+    expect(binnedTasks.tasks.map((t) => t.id)).toContain(task.task.id);
+
+    const restored = await json<{ project: { deleted_at: null } }>(
+      await fetchApp(
+        `http://flaremo.test/api/app/projects/${bareId(created.project.id)}/restore`,
+        { method: "POST" },
+      ),
+    );
+    expect(restored.project.deleted_at).toBeNull();
+    const revived = await fetchApp(
+      `http://flaremo.test/api/app/tasks/${bareTaskId(task.task.id)}`,
+    );
+    expect(revived.status).toBe(200);
   });
 
   it("updates a task status and records agent-labelled activity", async () => {

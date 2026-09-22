@@ -7,11 +7,13 @@ import {
 import type { TaskActor } from "@flaremo/domain";
 import {
   createTask,
+  deleteTask,
   getTask,
-  hardDeleteTask,
   listTaskActivity,
   listTasks,
+  parseResourceName,
   reorderTasks,
+  restoreTask,
   updateTask,
 } from "@flaremo/domain";
 import { zValidator } from "@hono/zod-validator";
@@ -23,11 +25,14 @@ import {
   type ReturnTypeOfRequestContext,
 } from "../context";
 import { jsonError } from "../http";
+import { rateLimitGuard } from "../rate-limit";
 
 export const tasksApi = new Hono<HonoBindings>();
 
+// `/api/app/*` routes take a bare resource id in the URL path; the shared
+// helper prepends the namespaced prefix (and passes namespaced names through).
 function parseTaskId(value: string) {
-  return `tasks/${value}`;
+  return parseResourceName(value, "tasks");
 }
 
 // Agents write through the same route as the browser, so the actor is derived
@@ -49,11 +54,21 @@ tasksApi.get("/", zValidator("query", listTasksQuerySchema), async (c) => {
   try {
     const { db, user } = await getRequestContext(c);
     const query = c.req.valid("query");
+    const result = await listTasks(db, user, {
+      projectId: query.project_id,
+      status: query.status,
+      priority: query.priority,
+      dueFrom: query.due_from,
+      dueTo: query.due_to,
+      includeDeleted: query.include_deleted,
+      pageSize: query.page_size,
+      pageToken: query.page_token,
+    });
     return c.json({
-      tasks: await listTasks(db, user, {
-        projectId: query.project_id,
-        status: query.status,
-      }),
+      tasks: result.tasks,
+      ...(result.nextPageToken
+        ? { next_page_token: result.nextPageToken }
+        : {}),
     });
   } catch (error) {
     return jsonError(c, error);
@@ -63,6 +78,8 @@ tasksApi.get("/", zValidator("query", listTasksQuerySchema), async (c) => {
 tasksApi.post("/", zValidator("json", createTaskSchema), async (c) => {
   try {
     const context = await getRequestContext(c);
+    const throttled = await rateLimitGuard(c, "tasks", context.user.id);
+    if (throttled) return throttled;
     return c.json(
       {
         task: await createTask(
@@ -82,6 +99,8 @@ tasksApi.post("/", zValidator("json", createTaskSchema), async (c) => {
 tasksApi.post("/reorder", zValidator("json", reorderTasksSchema), async (c) => {
   try {
     const context = await getRequestContext(c);
+    const throttled = await rateLimitGuard(c, "tasks", context.user.id);
+    if (throttled) return throttled;
     const { project_id, task_ids } = c.req.valid("json");
     return c.json({
       tasks: await reorderTasks(
@@ -111,6 +130,8 @@ tasksApi.get("/:id", async (c) => {
 tasksApi.patch("/:id", zValidator("json", updateTaskSchema), async (c) => {
   try {
     const context = await getRequestContext(c);
+    const throttled = await rateLimitGuard(c, "tasks", context.user.id);
+    if (throttled) return throttled;
     return c.json({
       task: await updateTask(
         context.db,
@@ -125,11 +146,33 @@ tasksApi.patch("/:id", zValidator("json", updateTaskSchema), async (c) => {
   }
 });
 
+// DELETE moves the task to the recycle bin; the physical delete happens in
+// the daily trash purge.
 tasksApi.delete("/:id", async (c) => {
   try {
-    const { db, user } = await getRequestContext(c);
-    await hardDeleteTask(db, user, parseTaskId(c.req.param("id")));
+    const context = await getRequestContext(c);
+    const throttled = await rateLimitGuard(c, "tasks", context.user.id);
+    if (throttled) return throttled;
+    await deleteTask(context.db, context.user, parseTaskId(c.req.param("id")));
     return c.json({ ok: true });
+  } catch (error) {
+    return jsonError(c, error);
+  }
+});
+
+// Restore pulls a soft-deleted task out of the recycle bin.
+tasksApi.post("/:id/restore", async (c) => {
+  try {
+    const context = await getRequestContext(c);
+    const throttled = await rateLimitGuard(c, "tasks", context.user.id);
+    if (throttled) return throttled;
+    return c.json({
+      task: await restoreTask(
+        context.db,
+        context.user,
+        parseTaskId(c.req.param("id")),
+      ),
+    });
   } catch (error) {
     return jsonError(c, error);
   }

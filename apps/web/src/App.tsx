@@ -1,66 +1,47 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
-  CalendarIcon,
-  DownloadIcon,
-  MenuIcon,
-  SettingsIcon,
-  UploadIcon,
-  XIcon,
+  ArrowUpIcon,
+  CalendarDaysIcon,
+  ChevronRightIcon,
+  EyeIcon,
+  SparklesIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
-import {
-  getCurrentFlareMoUser,
-  getMemoStats,
-  getTagHierarchy,
-  getVectorUsage,
-  listMemos,
-  type MemoSpace,
-  type MemoStatsResponse,
-  type MemoVisibility,
-  semanticSearchMemos,
-} from "@/api";
-import type { ExplorerView as ViewMode } from "@/components/flaremo-explorer";
-import { FlareMoExplorer } from "@/components/flaremo-explorer";
-import { InfoTip } from "@/components/info-tip";
-import { LocaleSwitcher } from "@/components/locale-switcher";
+import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import type { MemoVisibility } from "@/api";
 import { MemoList } from "@/components/memo-list";
-import { NotificationBell } from "@/components/notification-bell";
 import { PwaUpdatePrompt } from "@/components/pwa-update-prompt";
+import { SpotlightSearch } from "@/components/spotlight-search";
 import { Button } from "@/components/ui/button";
+import { ShortcutsDialog } from "@/components/workspace/shortcuts-dialog";
+import { TaskSearchResults } from "@/components/workspace/task-search-results";
+import { WorkspaceFilterChips } from "@/components/workspace/workspace-filter-chips";
+import { WorkspaceHeader } from "@/components/workspace/workspace-header";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import {
-  Sheet,
-  SheetContent,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import { UpdateStatus } from "@/components/update-status";
+  WorkspaceSidebar,
+  type WorkspaceSidebarContent,
+} from "@/components/workspace/workspace-sidebar";
 import { WorkspaceComposer } from "@/components/workspace-composer";
 import { WorkspaceSearch } from "@/components/workspace-search";
 import { useDataTransfer } from "@/hooks/use-data-transfer";
-import { useMemoMutations, viewToMemoState } from "@/hooks/use-memo-mutations";
-import { type TranslationKey, useI18n } from "@/i18n";
-import { dayFilterFromQuery, formatDayTitle } from "@/lib/calendar-date";
-import { cn } from "@/lib/utils";
+import { useMemoMutations } from "@/hooks/use-memo-mutations";
+import { useWorkspaceFilters } from "@/hooks/use-workspace-filters";
+import { useWorkspaceQueries } from "@/hooks/use-workspace-queries";
+import { useWorkspaceShortcuts } from "@/hooks/use-workspace-shortcuts";
+import { useI18n } from "@/i18n";
+import { focusComposerInput } from "@/lib/composer-focus";
 import { AppRoutes } from "@/router-tree";
 import { indexRoute, registerWorkspaceComponent } from "@/routes/index-route";
 
-const PAGE_SIZE = 30;
-const EMPTY_STATS: MemoStatsResponse = {
-  counts: { normal: 0, archived: 0, trashed: 0, total: 0 },
-  active_days: 0,
-  tags: [],
-  activity: [],
-};
+// The settings modal is opened in place over the workspace; the chunk (and
+// its account-page dependency graph) only downloads on first open.
+const AccountSettingsDialog = lazy(() =>
+  import("@/pages/account-page").then((module) => ({
+    default: module.AccountSettingsDialog,
+  })),
+);
+
+// Persisted so a collapsed desktop sidebar stays collapsed across reloads.
+const SIDEBAR_COLLAPSED_KEY = "flaremo.sidebar.collapsed";
 
 // Breaks the App ↔ router-tree import cycle: the route tree renders the
 // workspace through this registry instead of importing `@/App`. Module-eval
@@ -68,246 +49,100 @@ const EMPTY_STATS: MemoStatsResponse = {
 registerWorkspaceComponent(FlareMoApp);
 
 export function FlareMoApp() {
-  const { locale, t } = useI18n();
-  const navigate = useNavigate({ from: "/" });
+  const { t } = useI18n();
   const search = indexRoute.useSearch();
-  const view = search.view ?? "all";
-  const space = search.space ?? "all";
-  const activeTag = search.tag;
-  const untagged = Boolean(search.untagged);
-  const query = search.q ?? "";
-  const composeRequested = Boolean(search.compose);
-  // A query that is exactly one local day is not a text search; it renders as
-  // a removable date chip and the search box stays empty.
-  const dayFilter = dayFilterFromQuery(query);
-  const setView = useCallback(
-    (nextView: ViewMode) => {
-      void navigate({
-        replace: true,
-        search: (current) => ({ ...current, view: nextView }),
-      });
-    },
-    [navigate],
-  );
-  const setSpace = useCallback(
-    (nextSpace: MemoSpace) => {
-      void navigate({
-        replace: true,
-        // "all" is the default scope, so it stays off the URL entirely.
-        search: (current) => ({
-          ...current,
-          space: nextSpace === "all" ? undefined : nextSpace,
-        }),
-      });
-    },
-    [navigate],
-  );
-  const setActiveTag = useCallback(
-    (tag: string | undefined) => {
-      void navigate({
-        replace: true,
-        search: (current) => ({ ...current, tag, untagged: undefined }),
-      });
-    },
-    [navigate],
-  );
-  const setUntagged = useCallback(
-    (next: boolean) => {
-      void navigate({
-        replace: true,
-        search: (current) => ({
-          ...current,
-          tag: undefined,
-          untagged: next || undefined,
-        }),
-      });
-    },
-    [navigate],
-  );
-  const setQuery = useCallback(
-    (q: string) => {
-      void navigate({
-        replace: true,
-        search: (current) => ({
-          ...current,
-          q: q || undefined,
-          view: q.trim() ? "all" : "view" in current ? current.view : undefined,
-        }),
-      });
-    },
-    [navigate],
-  );
-  const clearFilters = useCallback(() => {
-    void navigate({
-      replace: true,
-      search: (current) => ({
-        ...current,
-        q: undefined,
-        tag: undefined,
-        untagged: undefined,
-      }),
-    });
-  }, [navigate]);
+  const {
+    activeTag,
+    clearFilters,
+    composeRequested,
+    dayFilter,
+    query,
+    setActiveTag,
+    setQuery,
+    setSpace,
+    setUntagged,
+    setView,
+    space,
+    untagged,
+    view,
+  } = useWorkspaceFilters(search);
   const [timeZone] = useState(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   );
-  const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
+  const mainRef = useRef<HTMLElement | null>(null);
   const [isTimelineScrolled, setIsTimelineScrolled] = useState(false);
+  const [showScrollToTop, setShowScrollToTop] = useState(false);
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [shortcutsOpen, setShowShortcutsOpen] = useState(false);
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+
+  const scrollToTop = useCallback(() => {
+    mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        // Persistence is best-effort; the in-memory choice still applies.
+      }
+      return next;
+    });
+  }, []);
   const searchQuery = query.trim();
   const isSearching = Boolean(searchQuery);
-  const [semanticMode, setSemanticMode] = useState(false);
 
-  const vectorUsageQuery = useQuery({
-    queryKey: ["vector-usage"],
-    queryFn: () => getVectorUsage(),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
-  // Semantic search is hidden when the plan has no budget for it (quota 0)
-  // or the capability itself is disabled server-side.
-  const semanticEnabled = useMemo(() => {
-    const plan = vectorUsageQuery.data?.plan;
-    if (!plan) return false;
-    const limit =
-      plan.user?.limits.semanticSearchQueriesPerMonth ??
-      plan.limits.semanticSearchQueriesPerMonth;
-    return typeof limit === "number" && limit > 0;
-  }, [vectorUsageQuery.data]);
-
-  const isSemanticSearch =
-    semanticMode && semanticEnabled && isSearching && !dayFilter;
-  const toggleSemantic = useCallback(
-    () => setSemanticMode((value) => !value),
-    [],
-  );
-  const semanticResultsQuery = useQuery({
-    queryKey: ["semantic-search", space, searchQuery],
-    enabled: isSemanticSearch,
-    queryFn: ({ signal }) =>
-      semanticSearchMemos(
-        searchQuery,
-        20,
-        signal,
-        space === "all" ? undefined : space,
-      ),
-    retry: false,
-  });
-  const semanticMemos = useMemo(
-    () => semanticResultsQuery.data?.memos ?? [],
-    [semanticResultsQuery.data],
-  );
-
-  useEffect(() => {
-    const focusSearch = () => {
-      const desktop = window.matchMedia("(min-width: 768px)").matches;
-      (desktop ? desktopSearchRef : mobileSearchRef).current?.focus();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      const editable =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      // Chorded shortcuts (⌘C copy, ⌘V paste) and shortcuts while a dialog
-      // owns the focus must not steal focus back to the composer/search.
-      const modalOpen =
-        document.querySelector('[role="dialog"][data-state="open"]') !== null;
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLocaleLowerCase() === "k"
-      ) {
-        event.preventDefault();
-        focusSearch();
-        return;
-      }
-      if (event.key === "/" && !editable && !modalOpen) {
-        event.preventDefault();
-        focusSearch();
-        return;
-      }
-      // "c" jumps straight into the composer for quick capture.
-      if (
-        event.key.toLocaleLowerCase() === "c" &&
-        !editable &&
-        !modalOpen &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey
-      ) {
-        const composer = document.getElementById("flaremo-composer-input");
-        if (composer instanceof HTMLTextAreaElement) {
-          event.preventDefault();
-          composer.focus();
-        }
-      }
-      // "?" lists the available keyboard shortcuts.
-      if (event.key === "?" && !editable && !modalOpen) {
-        event.preventDefault();
-        setShowShortcutsOpen(true);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  const memosQuery = useInfiniteQuery({
-    queryKey: ["memos", space, view, searchQuery, activeTag, untagged],
-    initialPageParam: undefined as string | undefined,
-    enabled: !isSemanticSearch,
-    queryFn: ({ pageParam, signal }) =>
-      listMemos(
-        {
-          include_deleted: !isSearching && view === "trashed",
-          page_size: PAGE_SIZE,
-          page_token: pageParam,
-          q: searchQuery || undefined,
-          state: isSearching ? undefined : viewToMemoState(view),
-          tag: activeTag,
-          untagged,
-          space: space === "all" ? undefined : space,
-        },
-        signal,
-      ),
-    getNextPageParam: (lastPage) => lastPage.next_page_token,
-    retry: false,
-  });
-  const statsQuery = useQuery({
-    queryKey: ["memo-stats", space, timeZone],
-    queryFn: () => getMemoStats(timeZone, space),
-    retry: false,
-  });
-  const tagHierarchyQuery = useQuery({
-    queryKey: ["tag-hierarchy", space],
-    queryFn: () => getTagHierarchy(space),
-    retry: false,
-  });
-  const currentUserQuery = useQuery({
-    queryKey: ["flaremo-user"],
-    queryFn: getCurrentFlareMoUser,
-    staleTime: 60_000,
-    retry: false,
+  const {
+    attachmentsByMemo,
+    canPublishTeam,
+    captureStatusQuery,
+    currentUserQuery,
+    displayedMemos,
+    isReader,
+    isSemanticSearch,
+    keywordSearch,
+    matchingTasks,
+    memosQuery,
+    onThisDayQuery,
+    semanticEnabled,
+    semanticMode,
+    semanticResultsQuery,
+    showOnThisDayBanner,
+    stats,
+    tagHierarchyQuery,
+    taskSearchQuery,
+    teamExpired,
+    toggleSemantic,
+    vectorUsageQuery,
+  } = useWorkspaceQueries({
+    activeTag,
+    dayFilter,
+    isSearching,
+    searchQuery,
+    space,
+    timeZone,
+    untagged,
+    view,
   });
 
-  const memos = useMemo(
-    () => memosQuery.data?.pages.flatMap((page) => page.memos) ?? [],
-    [memosQuery.data],
-  );
-  const displayedMemos = isSemanticSearch ? semanticMemos : memos;
-  const attachmentsByMemo = useMemo(
-    () =>
-      new Map(
-        displayedMemos.map(
-          (memo) => [memo.name, memo.attachments ?? []] as const,
-        ),
-      ),
-    [displayedMemos],
-  );
-  const stats = statsQuery.data ?? EMPTY_STATS;
-
+  const {
+    displayedMemosRef,
+    focusedMemoIndex,
+    handleArchiveRef,
+    handlePinRef,
+    setShowShortcutsOpen,
+    setSpotlightOpen,
+    shortcutsOpen,
+    spotlightOpen,
+  } = useWorkspaceShortcuts();
   const {
     deleteTagMutation,
     handleMutationError,
@@ -315,6 +150,7 @@ export function FlareMoApp() {
     invalidateWorkspace,
     renameTagMutation,
     restoreMutation,
+    revokeShareMutation,
     sharesByMemo,
     shareMutation,
     trashMutation,
@@ -329,7 +165,7 @@ export function FlareMoApp() {
   const { mutate: updateMemo, mutateAsync: updateMemoAsync } = updateMutation;
   const { mutate: trashMemo } = trashMutation;
   const { mutate: restoreMemo } = restoreMutation;
-  const { mutate: shareMemo } = shareMutation;
+  const { mutateAsync: shareMemo } = shareMutation;
   const { mutateAsync: hardDeleteMemo } = hardDeleteMutation;
   const handleArchive = useCallback(
     (id: string) => {
@@ -347,6 +183,9 @@ export function FlareMoApp() {
     (id: string, pinned: boolean) => updateMemo({ id, input: { pinned } }),
     [updateMemo],
   );
+  displayedMemosRef.current = displayedMemos;
+  handleArchiveRef.current = handleArchive;
+  handlePinRef.current = handlePin;
   const handleUpdate = useCallback(
     async (
       id: string,
@@ -383,165 +222,58 @@ export function FlareMoApp() {
     : memosQuery.isFetching && !memosQuery.isFetchingNextPage;
   const hasFilters = Boolean(query.trim() || activeTag || untagged);
 
-  const renderExplorer = (importInputId: string, onNavigate?: () => void) => (
-    <FlareMoExplorer
-      activeTag={activeTag}
-      activeView={view}
-      activeSpace={space}
-      team={currentUserQuery.data?.team ?? null}
-      onSpaceChange={setSpace}
-      headerAction={
-        <div className="mr-8 flex items-center gap-1 lg:mr-0">
-          <NotificationBell />
-          <UpdateStatus />
-          <Button
-            render={
-              <Link
-                onClick={onNavigate}
-                title={t("auth.accountTitle")}
-                to="/account"
-              />
-            }
-            aria-label={t("auth.accountTitle")}
-            size="icon-sm"
-            variant="ghost"
-          >
-            <SettingsIcon />
-          </Button>
-        </div>
-      }
-      footer={
-        <div className="flex items-center gap-1 text-muted-foreground">
-          <LocaleSwitcher />
-          <Button
-            aria-label={t("common.export")}
-            size="icon-sm"
-            title={t("common.export")}
-            variant="ghost"
-            onClick={() => void handleExport()}
-          >
-            <DownloadIcon />
-          </Button>
-          <Button
-            render={
-              <label
-                aria-label={t("common.import")}
-                htmlFor={importInputId}
-                title={t("common.import")}
-              />
-            }
-            size="icon-sm"
-            variant="ghost"
-          >
-            <UploadIcon />
-            <Input
-              accept="application/json"
-              className="hidden"
-              id={importInputId}
-              type="file"
-              onChange={async (event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (!file) return;
-                try {
-                  const text = await file.text();
-                  void handleImportFile(JSON.parse(text) as unknown);
-                } catch {
-                  toast.error(t("toast.invalidImport"));
-                }
-              }}
-            />
-          </Button>
-        </div>
-      }
-      stats={stats}
-      hierarchy={tagHierarchyQuery.data?.tags ?? []}
-      untagged={untagged}
-      onDeleteTag={(tag) => deleteTagMutation.mutate(tag)}
-      onRenameTag={(from, to) => renameTagMutation.mutate({ from, to })}
-      onTagChange={setActiveTag}
-      onUntaggedChange={setUntagged}
-      onViewChange={setView}
-      onNavigate={onNavigate}
-    />
-  );
+  const sidebarContent: WorkspaceSidebarContent = {
+    activeTag,
+    hierarchy: tagHierarchyQuery.data?.tags ?? [],
+    hierarchyPending: tagHierarchyQuery.isPending,
+    stats,
+    untagged,
+    user: currentUserQuery.data,
+    onDeleteTag: (tag) => deleteTagMutation.mutate(tag),
+    onExport: handleExport,
+    onImportFile: handleImportFile,
+    onOpenSettings: () => setAccountSettingsOpen(true),
+    onRenameTag: (from, to) => renameTagMutation.mutate({ from, to }),
+    onTagChange: setActiveTag,
+    onToggleCollapsed: toggleSidebarCollapsed,
+    onUntaggedChange: setUntagged,
+  };
 
   return (
     <div className="h-svh overflow-hidden bg-background">
       <div className="mx-auto flex h-full w-full max-w-[950px]">
-        <div className="no-scrollbar hidden h-full w-[312px] shrink-0 overflow-y-auto border-r bg-background lg:block">
-          {renderExplorer("flaremo-import-file-desktop")}
-        </div>
+        <WorkspaceSidebar
+          collapsed={sidebarCollapsed}
+          explorer={sidebarContent}
+        />
         <div className="flex h-full min-w-0 flex-1 flex-col">
-          <header
-            className={cn(
-              "z-20 shrink-0 border-b bg-background/90 backdrop-blur-md motion-safe:transition-[border-color,box-shadow] motion-safe:duration-200",
-              isTimelineScrolled
-                ? "border-border shadow-xs"
-                : "border-transparent",
-            )}
-          >
-            <div className="flex h-14 items-center gap-2 px-5 lg:px-3">
-              <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-                <SheetTrigger
-                  render={
-                    <Button
-                      aria-label={t("sidebar.toggle")}
-                      className="lg:hidden"
-                      size="icon-sm"
-                      variant="ghost"
-                    >
-                      <MenuIcon />
-                    </Button>
-                  }
-                />
-                <SheetContent
-                  className="w-[312px] overflow-hidden p-0"
-                  side="left"
-                >
-                  <SheetTitle className="sr-only">
-                    {t("sidebar.title")}
-                  </SheetTitle>
-                  <div
-                    className="no-scrollbar h-full overflow-y-auto overscroll-contain"
-                    data-testid="mobile-sidebar-scroll"
-                  >
-                    {renderExplorer("flaremo-import-file-mobile", () =>
-                      setMobileSheetOpen(false),
-                    )}
-                  </div>
-                </SheetContent>
-              </Sheet>
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span className="hidden text-muted-foreground sm:inline">
-                  /
-                </span>
-                <div className="truncate px-1.5 py-1 text-sm font-semibold">
-                  {dayFilter
-                    ? formatDayTitle(dayFilter, locale)
-                    : query.trim()
-                      ? t("search.results")
-                      : viewTitle(view, t)}
-                </div>
-              </div>
-              <WorkspaceSearch
-                className="hidden w-[280px] min-w-0 shrink md:block"
-                inputRef={desktopSearchRef}
-                onToggleSemantic={semanticEnabled ? toggleSemantic : undefined}
-                query={dayFilter ? "" : query}
-                semanticMode={semanticMode}
-                onQueryChange={setQuery}
-                isPending={isUpdating}
-              />
-            </div>
-          </header>
+          <WorkspaceHeader
+            activeQuery={dayFilter ? "" : query}
+            explorer={sidebarContent}
+            isTimelineScrolled={isTimelineScrolled}
+            mobileSheetOpen={mobileSheetOpen}
+            setMobileSheetOpen={setMobileSheetOpen}
+            setQuery={setQuery}
+            setSpace={setSpace}
+            setSpotlightOpen={setSpotlightOpen}
+            setView={setView}
+            sidebarCollapsed={sidebarCollapsed}
+            space={space}
+            team={currentUserQuery.data?.team ?? null}
+            toggleSidebarCollapsed={toggleSidebarCollapsed}
+            view={view}
+          />
           <main
+            ref={mainRef}
             className="mx-auto min-h-0 w-full max-w-[640px] flex-1 overflow-y-auto px-5 pt-1 pb-8 lg:px-3"
             onScroll={(event) => {
-              const scrolled = event.currentTarget.scrollTop > 4;
+              const top = event.currentTarget.scrollTop;
+              const scrolled = top > 4;
               setIsTimelineScrolled((prev) =>
                 prev === scrolled ? prev : scrolled,
               );
+              const showTop = top > 400;
+              setShowScrollToTop((prev) => (prev === showTop ? prev : showTop));
             }}
           >
             <WorkspaceSearch
@@ -550,79 +282,92 @@ export function FlareMoApp() {
               onToggleSemantic={semanticEnabled ? toggleSemantic : undefined}
               query={dayFilter ? "" : query}
               semanticMode={semanticMode}
+              semanticPending={vectorUsageQuery.isPending}
               onQueryChange={setQuery}
               isPending={isUpdating}
             />
             <div className="flex flex-col gap-3">
+              {teamExpired && (
+                <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground motion-safe:animate-rise">
+                  <EyeIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  {t("space.expiredNotice")}
+                </div>
+              )}
+              {isReader && space === "team" && (
+                <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/40 px-3 py-2 text-xs text-muted-foreground motion-safe:animate-rise">
+                  <EyeIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                  {t("space.readonlyNotice")}
+                </div>
+              )}
               <WorkspaceComposer
-                visible={view === "all"}
+                visible={view === "all" && !(isReader && space === "team")}
                 composeRequested={composeRequested}
                 space={space}
-                hasTeam={Boolean(currentUserQuery.data?.team)}
+                hasTeam={canPublishTeam}
+                tags={stats.tags}
+                captureAvailable={Boolean(captureStatusQuery.data?.available)}
               />
               {hasFilters && (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground motion-safe:animate-rise">
-                  {query.trim() && !dayFilter && !isSemanticSearch && (
-                    <span className="flex items-center gap-1.5 rounded-md bg-muted px-2 py-1">
-                      {t("search.globalScope")}
-                      <InfoTip text={t("search.syntaxHint")} />
-                    </span>
-                  )}
-                  {dayFilter && (
-                    <span className="flex items-center gap-1 rounded-md bg-muted px-2 py-1">
-                      <CalendarIcon
-                        aria-hidden="true"
-                        className="size-3 shrink-0"
-                      />
-                      {formatDayTitle(dayFilter, locale)}
-                      <button
-                        aria-label={t("filter.clearDate")}
-                        className="-mr-1 rounded p-0.5 hover:text-foreground"
-                        type="button"
-                        onClick={() => setQuery("")}
-                      >
-                        <XIcon className="size-3.5" />
-                      </button>
-                    </span>
-                  )}
-                  {activeTag && (
-                    <button
-                      aria-label={t("filter.clearTag", { tag: activeTag })}
-                      className="flex min-h-8 items-center gap-1 rounded-md bg-muted px-2 py-1 motion-safe:transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      type="button"
-                      onClick={() => setActiveTag(undefined)}
-                    >
-                      #{activeTag}
-                      <XIcon aria-hidden="true" className="size-3.5" />
-                    </button>
-                  )}
-                  {untagged && (
-                    <button
-                      className="flex min-h-8 items-center gap-1 rounded-md bg-muted px-2 py-1 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                      aria-label={t("filter.clearUntagged")}
-                      type="button"
-                      onClick={() => setUntagged(false)}
-                    >
-                      {t("explorer.untagged")}
-                      <XIcon aria-hidden="true" className="size-3.5" />
-                    </button>
-                  )}
-                  {hasFilters && (
-                    <button
-                      className="rounded-md px-2 py-1 motion-safe:transition-colors hover:bg-muted hover:text-foreground"
-                      type="button"
-                      onClick={clearFilters}
-                    >
-                      {t("common.clearFilters")}
-                    </button>
-                  )}
-                </div>
+                <WorkspaceFilterChips
+                  activeTag={activeTag}
+                  clearFilters={clearFilters}
+                  dayFilter={dayFilter}
+                  hasFilters={hasFilters}
+                  isSemanticSearch={isSemanticSearch}
+                  query={query}
+                  setActiveTag={setActiveTag}
+                  setQuery={setQuery}
+                  setUntagged={setUntagged}
+                  untagged={untagged}
+                />
               )}
               {isSemanticSearch && semanticResultsQuery.data?.degraded ? (
                 <p className="mb-3 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                   {t("search.semanticDegraded")}
                 </p>
               ) : null}
+              {keywordSearch && matchingTasks.length > 0 && (
+                <TaskSearchResults tasks={matchingTasks} />
+              )}
+              {showOnThisDayBanner && (
+                <Link
+                  className="mb-3 flex items-center gap-2.5 rounded-xl border border-brand-300/40 bg-brand-50/50 px-3.5 py-2.5 text-sm text-foreground motion-safe:animate-rise motion-safe:transition-[background-color,border-color] motion-safe:duration-150 hover:bg-brand-50 dark:border-brand-400/25 dark:bg-brand-400/5 dark:hover:bg-brand-400/10"
+                  data-testid="on-this-day-banner"
+                  to="/review/daily"
+                >
+                  <CalendarDaysIcon className="shrink-0 text-brand-500 dark:text-brand-400" />
+                  <span className="min-w-0 flex-1 truncate">
+                    {t("review.onThisDayBanner", {
+                      count: onThisDayQuery.data?.memos.length ?? 0,
+                    })}
+                  </span>
+                  <ChevronRightIcon className="shrink-0 text-muted-foreground" />
+                </Link>
+              )}
+              {semanticEnabled &&
+                !isSemanticSearch &&
+                !dayFilter &&
+                searchQuery &&
+                displayedMemos.length === 0 &&
+                !memosQuery.isLoading &&
+                !memosQuery.isFetchingNextPage &&
+                !memosQuery.isError && (
+                  <div className="mb-3 flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground motion-safe:animate-rise">
+                    <SparklesIcon className="size-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      {t("search.noResultsHint")}
+                    </span>
+                    <Button
+                      className="h-7 px-2 text-xs"
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                      onClick={toggleSemantic}
+                    >
+                      {t("search.semanticToggle")}
+                    </Button>
+                  </div>
+                )}
               <MemoList
                 attachmentsByMemo={attachmentsByMemo}
                 emptyDescription={
@@ -653,6 +398,12 @@ export function FlareMoApp() {
                     : memosQuery.isLoading
                 }
                 memos={displayedMemos}
+                focusedMemoId={
+                  focusedMemoIndex !== null
+                    ? displayedMemos[focusedMemoIndex]?.id ||
+                      displayedMemos[focusedMemoIndex]?.name
+                    : null
+                }
                 searchQuery={searchQuery || undefined}
                 sharesByMemo={sharesByMemo}
                 onArchive={handleArchive}
@@ -661,6 +412,7 @@ export function FlareMoApp() {
                 onPin={handlePin}
                 onRestore={restoreMemo}
                 onRetry={handleRetry}
+                onRevokeShare={(share) => revokeShareMutation.mutate(share.id)}
                 onShare={shareMemo}
                 onTagClick={setActiveTag}
                 onTrash={trashMemo}
@@ -683,54 +435,50 @@ export function FlareMoApp() {
                         : t("list.trashEmptyTitle")
                 }
               />
+              {showScrollToTop && (
+                <Button
+                  aria-label={t("common.scrollToTop")}
+                  className="fixed bottom-6 right-6 z-30 size-9 rounded-full border border-border/60 bg-background/85 p-0 text-muted-foreground shadow-sm backdrop-blur-md hover:bg-muted hover:text-foreground active:scale-95 motion-safe:animate-scale-in motion-safe:transition-all sm:right-8"
+                  size="icon"
+                  title={t("common.scrollToTop")}
+                  type="button"
+                  variant="outline"
+                  onClick={scrollToTop}
+                >
+                  <ArrowUpIcon className="size-4" />
+                </Button>
+              )}
             </div>
           </main>
         </div>
       </div>
-      <Dialog open={shortcutsOpen} onOpenChange={setShowShortcutsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("shortcuts.title")}</DialogTitle>
-            <DialogDescription>{t("shortcuts.subtitle")}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col divide-y divide-border/60">
-            {(
-              [
-                ["shortcuts.search", "⌘K / /"],
-                ["shortcuts.composer", "C"],
-                ["shortcuts.send", "Enter"],
-                ["shortcuts.linebreak", "Shift + Enter"],
-                ["shortcuts.saveEdit", "⌘Enter"],
-              ] as const
-            ).map(([key, combo]) => (
-              <div
-                className="flex items-center justify-between gap-3 py-2 text-sm"
-                key={key}
-              >
-                <span className="text-muted-foreground">
-                  {t(key as TranslationKey)}
-                </span>
-                <kbd className="rounded-md border bg-muted px-2 py-0.5 font-mono text-xs">
-                  {combo}
-                </kbd>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <Suspense fallback={null}>
+        {accountSettingsOpen && (
+          <AccountSettingsDialog
+            open
+            onClose={() => setAccountSettingsOpen(false)}
+          />
+        )}
+      </Suspense>
+      <SpotlightSearch
+        open={spotlightOpen}
+        onOpenChange={setSpotlightOpen}
+        query={dayFilter ? "" : query}
+        onQueryChange={setQuery}
+        onNewMemo={focusComposerInput}
+        tasks={taskSearchQuery.data?.tasks ?? []}
+        memos={displayedMemos}
+        semanticMode={semanticMode}
+        onToggleSemantic={semanticEnabled ? toggleSemantic : undefined}
+        semanticPending={vectorUsageQuery.isPending}
+        isSearching={isUpdating}
+      />
+      <ShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShowShortcutsOpen}
+      />
     </div>
   );
-}
-
-function viewTitle(view: ViewMode, t: (key: TranslationKey) => string) {
-  switch (view) {
-    case "archived":
-      return t("view.archive");
-    case "trashed":
-      return t("view.trash");
-    default:
-      return t("view.timeline");
-  }
 }
 
 export default function App() {

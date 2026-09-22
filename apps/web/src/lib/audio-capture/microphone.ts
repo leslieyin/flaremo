@@ -1,7 +1,16 @@
 import { PcmEncoder } from "./pcm";
 import workletUrl from "./worklet?worker&url";
 
-export type Microphone = { stop(): Promise<void>; dispose(): void };
+export type Microphone = {
+  stop(): Promise<void>;
+  dispose(): void;
+  /**
+   * Latest time-domain samples (analyser fftSize 512) for the live waveform,
+   * or null once the microphone is gone. The buffer is reused between calls;
+   * read it synchronously.
+   */
+  getWaveform?(): Uint8Array | null;
+};
 
 /** Called synchronously from a user gesture; never reopens the mic on reconnect. */
 export async function openMicrophone(
@@ -12,6 +21,8 @@ export async function openMicrophone(
   let context: AudioContext | undefined;
   let stream: MediaStream | undefined;
   let source: MediaStreamAudioSourceNode | undefined;
+  let analyser: AnalyserNode | undefined;
+  const waveform = new Uint8Array(512);
   let sink: GainNode | undefined;
   let worklet: AudioWorkletNode | undefined;
   let processor: ScriptProcessorNode | undefined;
@@ -38,6 +49,7 @@ export async function openMicrophone(
     source?.disconnect();
     processor?.disconnect();
     worklet?.disconnect();
+    analyser?.disconnect();
     sink?.disconnect();
     if (processor) processor.onaudioprocess = null;
     if (worklet) {
@@ -79,6 +91,10 @@ export async function openMicrophone(
     if (context.state !== "running")
       throw new Error("AudioContext unavailable");
     source = context.createMediaStreamSource(stream);
+    // The waveform taps the stream without touching the encoding path.
+    analyser = context.createAnalyser();
+    analyser.fftSize = waveform.length;
+    source.connect(analyser);
     sink = context.createGain();
     sink.gain.value = 0;
     sink.connect(context.destination);
@@ -122,6 +138,13 @@ export async function openMicrophone(
     });
     return {
       dispose,
+      getWaveform: () => {
+        if (analyser && !disposed) {
+          analyser.getByteTimeDomainData(waveform);
+          return waveform;
+        }
+        return null;
+      },
       stop() {
         if (stopPromise) return stopPromise;
         stopping = true;

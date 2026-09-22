@@ -12,6 +12,7 @@ import { AuthPageFrame } from "@/components/auth-page-frame";
 import { CaptchaField } from "@/components/captcha-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useI18n } from "@/i18n";
 import { errorMessage } from "@/lib/error";
 
@@ -146,7 +147,7 @@ export function RegisterPage() {
             </Button>
           )}
           <Link
-            className="text-sm font-medium text-flame-600 underline-offset-4 hover:underline"
+            className="text-sm font-medium text-brand-600 underline-offset-4 hover:underline"
             to="/login"
           >
             {t("auth.signIn")}
@@ -219,14 +220,13 @@ export function RegisterPage() {
             htmlFor="register-password"
           >
             {t("auth.password")}
-            <Input
+            <PasswordInput
               autoComplete="new-password"
               disabled={isSubmitting}
               id="register-password"
               minLength={MIN_PASSWORD_LENGTH}
               name="password"
               required
-              type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
@@ -236,20 +236,24 @@ export function RegisterPage() {
             htmlFor="register-password-confirmation"
           >
             {t("auth.confirmPassword")}
-            <Input
+            <PasswordInput
               autoComplete="new-password"
               disabled={isSubmitting}
               id="register-password-confirmation"
               minLength={MIN_PASSWORD_LENGTH}
               name="password-confirmation"
               required
-              type="password"
               value={passwordConfirmation}
               onChange={(event) => setPasswordConfirmation(event.target.value)}
             />
           </label>
         </div>
-        {registrationQuery.data?.captcha &&
+        {registrationQuery.isPending ? (
+          // Reserve the captcha's button height while the status is in
+          // flight so the submit button doesn't pop down when it lands.
+          <div aria-hidden="true" className="min-h-9" />
+        ) : (
+          registrationQuery.data?.captcha &&
           registrationQuery.data.captcha.provider !== "none" && (
             <CaptchaField
               disabled={isSubmitting}
@@ -261,7 +265,8 @@ export function RegisterPage() {
               provider={registrationQuery.data.captcha.provider}
               siteKey={registrationQuery.data.captcha.site_key}
             />
-          )}
+          )
+        )}
         {formError && (
           <p className="rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive">
             {formError}

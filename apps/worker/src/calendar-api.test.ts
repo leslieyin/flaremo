@@ -187,6 +187,38 @@ describe("FlareMo calendar API", () => {
     ).toMatchObject({ status: "done" });
   });
 
+  it("returns 24-hour activity buckets for a given date", async () => {
+    await json(
+      await fetchApp("http://flaremo.test/api/app/memos", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: "一条小时测试笔记" }),
+      }),
+    );
+
+    const today = new Date().toISOString().slice(0, 10);
+    const tz = new Date().getTimezoneOffset();
+    const res = await fetchApp(
+      `http://flaremo.test/api/app/stats/hourly?date=${today}&tz=${tz}`,
+    );
+    expect(res.status).toBe(200);
+    const data = await json<{ hours: Array<{ hour: number; count: number }> }>(
+      res,
+    );
+    expect(data.hours).toHaveLength(24);
+    expect(data.hours[0]?.hour).toBe(0);
+    expect(data.hours[23]?.hour).toBe(23);
+    const totalCount = data.hours.reduce((acc, h) => acc + h.count, 0);
+    expect(totalCount).toBeGreaterThanOrEqual(1);
+
+    const unauthenticated = await fetchApp(
+      `http://flaremo.test/api/app/stats/hourly?date=${today}`,
+      undefined,
+      { authenticated: false },
+    );
+    expect(unauthenticated.status).toBe(401);
+  });
+
   it("rejects invalid ranges and unauthenticated access", async () => {
     const reversed = await fetchApp(
       "http://flaremo.test/api/app/calendar?from=2026-10-01&to=2026-09-01",

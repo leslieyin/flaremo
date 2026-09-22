@@ -32,7 +32,12 @@
   --signal-deep: #ea580c;
   --signal-warm: #fb923c;
   --signal-ink: #c2410c;
-  --gradient-brand: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%);
+  --gradient-brand: linear-gradient(
+    135deg,
+    #fb923c 0%,
+    #f97316 50%,
+    #ea580c 100%
+  );
   --flame-50: #fff7ed;
   --flame-100: #ffedd5;
   --flame-200: #fed7aa;
@@ -58,12 +63,16 @@
   --card-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
   --dock-from: rgba(0, 0, 0, 0.03);
   --dock-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
-  --panel-elev: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -14px rgba(0, 0, 0, 0.08);
+  --panel-elev:
+    0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px -14px rgba(0, 0, 0, 0.08);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.08);
   --shadow-pop-xl:
-    0 24px 70px -12px rgba(0, 0, 0, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
-  --shadow-glass: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-  --hover-lift: 0 12px 24px -4px rgba(0, 0, 0, 0.09), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    0 24px 70px -12px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  --shadow-glass:
+    0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --hover-lift:
+    0 12px 24px -4px rgba(0, 0, 0, 0.09), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
 
   /* shadcn 语义映射 */
   --background: var(--paper);
@@ -112,12 +121,16 @@
   --dock-from: rgba(255, 255, 255, 0.06);
   --dock-inset: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
   --panel-elev:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.6);
   --shadow-pop-xl:
-    0 24px 70px -12px rgba(0, 0, 0, 0.75), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-  --shadow-glass: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-  --hover-lift: 0 12px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    0 24px 70px -12px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --shadow-glass:
+    0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --hover-lift:
+    0 12px 24px -4px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
 
   --signal-ink: var(--signal);
   --flame-50: #431407;
@@ -125,14 +138,19 @@
 }
 
 @theme inline {
+  /* Latin on the bundled Geist, CJK on the platform faces named by
+     --font-cjk below (defined per script in the base layer). Noto Sans
+     Arabic stays behind the Han faces on purpose: its math/symbols subsets
+     also cover ① ★ →, which the CJK faces should shape instead. */
   --font-sans:
-    "Geist Variable", "Noto Sans Arabic Variable", "PingFang SC",
-    "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui,
-    -apple-system, sans-serif;
-  --font-display:
-    "Geist Variable", "Noto Sans Arabic Variable", "PingFang SC",
-    "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", system-ui,
-    -apple-system, sans-serif;
+    "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    var(--font-cjk), "Noto Sans Arabic Variable", system-ui, sans-serif;
+  /* Same stack as --font-sans, but a distinct token: components reach for
+     `font-heading` by name (site-mark does), and without this declaration
+     Tailwind emits no rule for that class at all. */
+  --font-heading:
+    "Geist Variable", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    var(--font-cjk), "Noto Sans Arabic Variable", system-ui, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
@@ -205,16 +223,43 @@
     background-color: var(--paper);
     color: var(--ink);
   }
+  /* Han fallbacks are keyed off <html lang> (set per locale by the SSG shell),
+     because font matching walks this list per character: one shared list would
+     hand Japanese kana/kanji to PingFang SC and paint them with Chinese glyph
+     forms, and Korean would fall through to a last-resort face. */
+  :root {
+    --font-cjk:
+      "PingFang SC", "Hiragino Sans GB", MiSans, "HarmonyOS Sans SC",
+      "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC";
+  }
+  :root:lang(ja) {
+    --font-cjk:
+      "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+      Meiryo, "Noto Sans JP", "Noto Sans CJK JP", "PingFang SC",
+      "Microsoft YaHei";
+  }
+  /* The variables live on :root, so a subtree that declares a different
+     language (the docs body, which is Chinese for every UI locale) would keep
+     inheriting the page's list. Matching :lang() on the element itself lets a
+     zh-CN subtree switch back to the Chinese faces — without this, Chinese
+     body text on a /ja/ page renders with Japanese glyph forms. */
+  :lang(zh) {
+    --font-cjk:
+      "PingFang SC", "Hiragino Sans GB", MiSans, "HarmonyOS Sans SC",
+      "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC";
+  }
+  :root:lang(ko) {
+    --font-cjk:
+      "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR",
+      "Noto Sans CJK KR", "PingFang SC", "Microsoft YaHei";
+  }
   body {
     background-color: var(--paper);
     color: var(--ink);
     text-rendering: optimizeLegibility;
     min-height: 100vh;
   }
-  /* RTL 排版重置：负字距会切断阿拉伯字母的连笔曲线 */
-  [dir="rtl"] :is(h1, h2, h3, h4, [class*="tracking-"]) {
-    letter-spacing: 0;
-  }
+  /* 字距重置在 @layer base 之外（见文件末尾）——写层内会被 utilities 盖掉 */
   ::selection {
     background: color-mix(in srgb, var(--signal) 28%, transparent);
   }
@@ -222,7 +267,8 @@
   /* 细致优雅滚动条 */
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--mist) 25%, transparent) transparent;
+    scrollbar-color: color-mix(in srgb, var(--mist) 25%, transparent)
+      transparent;
   }
   ::-webkit-scrollbar {
     width: 5px;
@@ -297,8 +343,14 @@
 
 /* Tab 内容切换入场 */
 @keyframes tab-in {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 @utility tab-in {
   animation: tab-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -339,4 +391,24 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* 字距重置必须在 @layer base 之外。负字距来自 .tracking-* 工具类，而工具类
+   位于 @layer utilities；CSS 分层规则里后声明的层永远胜过前一层，与特异性
+   无关——写在 base 里的重置会被工具类无声盖掉。未分层样式优先级高于任何
+   分层样式，放这里才真正生效。 */
+[dir="rtl"] :is(h1, h2, h3, h4, [class*="tracking-"]) {
+  letter-spacing: 0;
+}
+/* 汉字没有真正的斜体字形，浏览器只能合成几何倾斜（伪斜体），笔画被剪切。
+   官网正文与文档由 Markdown 渲染，`*强调*` 会走 UA 默认的 `<em>` 斜体；
+   逐处去掉会让英文失去强调，故在语言层禁掉合成。 */
+:is(:lang(zh), :lang(ja), :lang(ko)) {
+  font-synthesis: none;
+}
+/* 汉字是满字身方块，字面几乎占满 em 框，两侧留白本就极小，tracking-tight 的
+   -0.025em 会吃掉其中相当一部分，笔画多的字开始粘连（官网大标题最明显）。
+   :lang(zh) 按 RFC 4647 前缀匹配，能命中 zh-CN。 */
+:is(:lang(zh), :lang(ja), :lang(ko)) :is(h1, h2, h3, h4, [class*="tracking-"]) {
+  letter-spacing: 0;
 }

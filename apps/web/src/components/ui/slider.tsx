@@ -41,7 +41,7 @@ function Slider({
         >
           <SliderPrimitive.Indicator
             data-slot="slider-range"
-            className="absolute h-full bg-flame-400"
+            className="absolute h-full bg-brand-400"
           />
         </SliderPrimitive.Track>
         {Array.from({ length: _values.length }, (_, index) => (
@@ -49,7 +49,7 @@ function Slider({
             data-slot="slider-thumb"
             // biome-ignore lint/suspicious/noArrayIndexKey: thumb identity is positional.
             key={index}
-            className="block size-3.5 shrink-0 rounded-full border border-flame-400 bg-background shadow-sm transition-[color,box-shadow] outline-none hover:ring-4 hover:ring-flame-400/25 focus-visible:ring-4 focus-visible:ring-flame-400/25 disabled:pointer-events-none"
+            className="block size-3.5 shrink-0 rounded-full border border-brand-400 bg-background shadow-sm transition-[color,box-shadow] outline-none hover:ring-4 hover:ring-brand-400/25 focus-visible:ring-4 focus-visible:ring-brand-400/25 disabled:pointer-events-none"
           />
         ))}
       </SliderPrimitive.Control>

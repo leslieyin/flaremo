@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   ALL_CLASSIFIED_TABLES,
@@ -6,11 +6,20 @@ import {
   RESTORE_TABLES,
 } from "./persistence-manifest.mjs";
 
-const schemaPath = resolve("packages/db/src/schema.ts");
-const schema = readFileSync(schemaPath, "utf8");
-const schemaTables = [
-  ...schema.matchAll(/sqliteTable\(\s*["']([^"']+)["']/g),
-].map((match) => match[1]);
+// The schema is a barrel over packages/db/src/schema/, so every table lives in
+// one of the directory's modules rather than in a single file.
+const schemaDir = resolve("packages/db/src/schema");
+const schemaFiles = readdirSync(schemaDir)
+  .filter((name) => name.endsWith(".ts"))
+  .sort()
+  .map((name) => resolve(schemaDir, name));
+const schemaTables = schemaFiles
+  .flatMap((schemaFile) => [
+    ...readFileSync(schemaFile, "utf8").matchAll(
+      /sqliteTable\(\s*["']([^"']+)["']/g,
+    ),
+  ])
+  .map((match) => match[1]);
 
 const duplicateSchemaTables = duplicates(schemaTables);
 const duplicateClassifications = duplicates(ALL_CLASSIFIED_TABLES);

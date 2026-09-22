@@ -78,7 +78,7 @@
 - [x] shares 域层单测（权限门、复用、撤销/过期不可见）。
 - [x] data-tasks 域层单测（所有权、租约过期、TTL 清理）。
 - [x] push 模块单测（订阅幂等、RFC 8291 信封解密往返）。
-- [x] 复用层覆盖说明：10 个 routes 的行为由 api.test.ts 的 HTTP 级集成测试兜底（51 用例），单独立覆盖的边际价值低于维护成本——记录为接受项。
+- [x] 复用层覆盖说明：10 个 routes 的行为由 `apps/worker/src/api/*.test.ts` 的 HTTP 级集成测试兜底（51 用例），单独立覆盖的边际价值低于维护成本——记录为接受项。
 - [x] cron/queue 生命周期自动化测试：`apps/worker/src/scheduled.test.ts`（Miniflare D1 + R2 stub）覆盖 runScheduledMaintenance 全链路——过期回收站带附件硬删、孤儿/新鲜附件 GC 分界、每日回顾与逾期日程通知幂等（同日重跑不重复）、过期 data task 清理 + R2 导出工件回收。
 - [ ] packages/db 与 e2e 缺口（Markdown 渲染/revision 恢复/分享撤销 e2e）：与 ROADMAP R8 合并推进。
 

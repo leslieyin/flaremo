@@ -1,5 +1,4 @@
 import {
-  applyFlaremoMigrations,
   authUserLinks,
   authUsers,
   createDb,
@@ -8,24 +7,23 @@ import {
   users,
 } from "@flaremo/db";
 import { eq } from "drizzle-orm";
-import { Miniflare } from "miniflare";
+import type { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import app from "./index";
+import { jsonWithStatus as json } from "./test-support/app";
+import { createTestRuntime } from "./test-support/runtime";
+import { bootstrapAndSignIn } from "./test-support/sign-in";
 
 let mf: Miniflare;
 let env: Env;
 let sessionCookie: string;
 
-const TEST_AUTH_SECRET =
-  "test-better-auth-secret-that-is-never-used-in-production";
-const TEST_BOOTSTRAP_SECRET =
-  "test-bootstrap-secret-that-is-never-used-in-production";
-const TEST_PASSWORD = "test-password-not-for-production-123";
-
 describe("Memos social REST compatibility", () => {
   beforeEach(async () => {
-    ({ mf, env } = await createTestRuntime());
-    sessionCookie = await bootstrapAndSignIn();
+    ({ runtime: mf, env } = await createTestRuntime({
+      name: "flaremo-social",
+    }));
+    sessionCookie = await bootstrapAndSignIn(env);
   });
 
   afterEach(async () => {
@@ -448,94 +446,4 @@ async function createMemo(content: string) {
       body: JSON.stringify({ content }),
     }),
   );
-}
-
-async function bootstrapAndSignIn() {
-  const setup = await app.fetch(
-    new Request("http://flaremo.test/api/auth/flaremo/bootstrap", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-flaremo-bootstrap-secret": TEST_BOOTSTRAP_SECRET,
-        origin: "http://flaremo.test",
-      },
-      body: JSON.stringify({
-        username: "owner",
-        name: "Owner",
-        email: "owner@example.com",
-        password: TEST_PASSWORD,
-      }),
-    }),
-    env,
-  );
-  expect(setup.status).toBe(201);
-
-  const signIn = await app.fetch(
-    new Request("http://flaremo.test/api/auth/sign-in/username", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: "http://flaremo.test",
-      },
-      body: JSON.stringify({
-        username: "owner",
-        password: TEST_PASSWORD,
-      }),
-    }),
-    env,
-  );
-  expect(signIn.status).toBe(200);
-  return extractCookieHeader(signIn);
-}
-
-function extractCookieHeader(response: Response) {
-  const headers = response.headers as Headers & {
-    getSetCookie?: () => string[];
-  };
-  const cookies = (
-    headers.getSetCookie?.() ?? [response.headers.get("set-cookie")]
-  )
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.split(";", 1)[0] ?? "")
-    .filter(Boolean);
-  expect(cookies.length).toBeGreaterThan(0);
-  return cookies.join("; ");
-}
-
-async function json<T = Record<string, unknown>>(
-  response: Response,
-  status = 200,
-) {
-  expect(response.status).toBe(status);
-  return response.json() as Promise<T>;
-}
-
-async function createTestRuntime() {
-  const runtime = new Miniflare({
-    script: "export default { fetch() { return new Response('ok') } }",
-    modules: true,
-    compatibilityDate: "2026-07-10",
-    compatibilityFlags: ["nodejs_compat"],
-    d1Databases: { DB: `flaremo-social-${crypto.randomUUID()}` },
-    r2Buckets: {
-      ATTACHMENTS: `flaremo-social-attachments-${crypto.randomUUID()}`,
-    },
-  });
-  const db = await runtime.getD1Database("DB");
-  await applyFlaremoMigrations(db);
-  return {
-    mf: runtime,
-    env: {
-      DB: db,
-      ATTACHMENTS: await runtime.getR2Bucket("ATTACHMENTS"),
-      ASSETS: {
-        fetch: async () => new Response("asset", { status: 200 }),
-      } as Fetcher,
-      FLAREMO_SINGLE_USER_EMAIL: "owner@example.com",
-      FLAREMO_SINGLE_USER_NAME: "Owner",
-      FLAREMO_PUBLIC_URL: "http://flaremo.test",
-      BETTER_AUTH_SECRET: TEST_AUTH_SECRET,
-      FLAREMO_BOOTSTRAP_SECRET: TEST_BOOTSTRAP_SECRET,
-    } as Env,
-  };
 }

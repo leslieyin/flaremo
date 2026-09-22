@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { applyFlaremoMigrations, createDb } from "@flaremo/db";
+import { createDb } from "@flaremo/db";
 import { completeOwnerBootstrap } from "@flaremo/domain";
-import { Miniflare } from "miniflare";
+import type { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFlareMoAuth } from "./auth";
 import type { FlareMoEnv } from "./env";
@@ -10,6 +10,7 @@ import {
   issueMemosNativeTokens,
   rotateMemosRefreshToken,
 } from "./memos-native-auth";
+import { createTestRuntime } from "./test-support/runtime";
 
 const TEST_ONLY_EMAIL = "golden-owner@example.test";
 const TEST_ONLY_NAME = "Golden Owner";
@@ -53,7 +54,19 @@ let database: D1Database;
 
 describe("native Memos auth deterministic golden fixture", () => {
   beforeEach(async () => {
-    ({ runtime, env, database } = await createTestRuntime());
+    ({
+      runtime,
+      env,
+      db: database,
+    } = await createTestRuntime({
+      name: "flaremo-auth-golden",
+      authSecret: "cross-language-fixture-secret-2026",
+      bootstrapSecret: null,
+      env: {
+        FLAREMO_SINGLE_USER_EMAIL: TEST_ONLY_EMAIL,
+        FLAREMO_SINGLE_USER_NAME: TEST_ONLY_NAME,
+      },
+    }));
   });
 
   afterEach(async () => {
@@ -259,37 +272,6 @@ async function createBetterAuthLinkedOwner() {
     singleUser: { email: TEST_ONLY_EMAIL, name: TEST_ONLY_NAME },
   });
   return { id: result.user.id, user };
-}
-
-async function createTestRuntime() {
-  const instance = new Miniflare({
-    script: "export default { fetch() { return new Response('ok') } }",
-    modules: true,
-    compatibilityDate: "2026-07-10",
-    compatibilityFlags: ["nodejs_compat"],
-    d1Databases: { DB: `flaremo-auth-golden-${crypto.randomUUID()}` },
-    r2Buckets: {
-      ATTACHMENTS: `flaremo-auth-golden-attachments-${crypto.randomUUID()}`,
-    },
-  });
-  const db = await instance.getD1Database("DB");
-  await applyFlaremoMigrations(db);
-
-  return {
-    runtime: instance,
-    database: db,
-    env: {
-      DB: db,
-      ATTACHMENTS: await instance.getR2Bucket("ATTACHMENTS"),
-      ASSETS: {
-        fetch: async () => new Response("asset"),
-      } as Fetcher,
-      FLAREMO_SINGLE_USER_EMAIL: TEST_ONLY_EMAIL,
-      FLAREMO_SINGLE_USER_NAME: TEST_ONLY_NAME,
-      FLAREMO_PUBLIC_URL: "http://flaremo.test",
-      BETTER_AUTH_SECRET: "cross-language-fixture-secret-2026",
-    } as Env,
-  };
 }
 
 async function sha256Hex(value: string) {

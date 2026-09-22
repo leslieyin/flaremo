@@ -15,6 +15,7 @@ export const WorkspaceSearch = memo(function WorkspaceSearch({
   isPending,
   semanticMode,
   onToggleSemantic,
+  semanticPending = false,
   onQueryChange,
 }: {
   className: string;
@@ -23,6 +24,8 @@ export const WorkspaceSearch = memo(function WorkspaceSearch({
   isPending: boolean;
   semanticMode: boolean;
   onToggleSemantic?: () => void;
+  /** True while the plan/usage query decides whether semantic mode exists. */
+  semanticPending?: boolean;
   onQueryChange: (value: string) => void;
 }) {
   const { t } = useI18n();
@@ -103,18 +106,24 @@ export const WorkspaceSearch = memo(function WorkspaceSearch({
               <XIcon />
             </InputGroupButton>
           )}
-          {onToggleSemantic && (
+          {onToggleSemantic || semanticPending ? (
             <InputGroupButton
               aria-label={t("search.semanticToggle")}
+              aria-hidden={!onToggleSemantic}
               aria-pressed={semanticMode}
+              className={
+                onToggleSemantic ? undefined : "pointer-events-none invisible"
+              }
+              disabled={!onToggleSemantic}
               size="icon-sm"
+              tabIndex={onToggleSemantic ? undefined : -1}
               title={t("search.semanticToggle")}
               variant={semanticMode ? "secondary" : "ghost"}
               onClick={onToggleSemantic}
             >
               <SparklesIcon />
             </InputGroupButton>
-          )}
+          ) : null}
         </InputGroupAddon>
       </InputGroup>
     </div>

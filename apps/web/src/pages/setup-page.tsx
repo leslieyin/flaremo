@@ -5,6 +5,8 @@ import { bootstrapOwner, getBootstrapStatus } from "@/api";
 import { AuthPageFrame } from "@/components/auth-page-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useI18n } from "@/i18n";
 import { errorMessage } from "@/lib/error";
 
@@ -73,7 +75,16 @@ export function SetupPage() {
       title={t("auth.setupTitle")}
     >
       {bootstrapQuery.isPending && (
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        // Form-shaped skeleton instead of a one-line "loading": the real
+        // content is a ~4-row form, so matching its silhouette keeps the
+        // single swap from skeleton to form visually quiet.
+        <div aria-hidden="true" className="flex flex-col gap-4">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-28" />
+        </div>
       )}
       {bootstrapQuery.isError && (
         <p className="rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2 text-sm text-destructive">
@@ -114,7 +125,7 @@ export function SetupPage() {
               type="password"
               value={bootstrapSecret}
               onChange={(event) => setBootstrapSecret(event.target.value)}
-            />
+            />{" "}
           </label>
           <label
             className="flex flex-col gap-1.5 text-sm font-medium"
@@ -155,14 +166,13 @@ export function SetupPage() {
               htmlFor="setup-password"
             >
               {t("auth.password")}
-              <Input
+              <PasswordInput
                 autoComplete="new-password"
                 disabled={isSubmitting}
                 id="setup-password"
                 minLength={MIN_PASSWORD_LENGTH}
                 name="password"
                 required
-                type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
@@ -172,14 +182,13 @@ export function SetupPage() {
               htmlFor="setup-password-confirmation"
             >
               {t("auth.confirmPassword")}
-              <Input
+              <PasswordInput
                 autoComplete="new-password"
                 disabled={isSubmitting}
                 id="setup-password-confirmation"
                 minLength={MIN_PASSWORD_LENGTH}
                 name="password-confirmation"
                 required
-                type="password"
                 value={passwordConfirmation}
                 onChange={(event) =>
                   setPasswordConfirmation(event.target.value)

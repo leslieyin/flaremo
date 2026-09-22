@@ -59,7 +59,7 @@ Better Auth 是应用层认证事实源，Cloudflare Access 只能作为可选�
 
 | 能力 | 代码状态 | 仓库测试状态 | current 路径 / 边界 |
 | --- | --- | --- | --- |
-| current 用户与 auth facade | 已实现 | 已测试 | `GET /api/v1/auth/me`、`POST /api/v1/auth/signin`、`signup`、`refresh`、`signout`；`GET/POST/DELETE /api/v1/users` 及 `GET /api/v1/users/{user}` 提供多用户列表、创建和删除（owner 权限）。`memos-compatibility.test.ts`、`auth.test.ts` 覆盖账户和凭据边界。 |
+| current 用户与 auth facade | 已实现 | 已测试 | `GET /api/v1/auth/me`、`POST /api/v1/auth/signin`、`signup`、`refresh`、`signout`；`GET/POST/DELETE /api/v1/users` 及 `GET /api/v1/users/{user}` 提供多用户列表、创建和删除（owner 权限）。`apps/worker/src/compatibility/*.test.ts`、`auth.test.ts` 覆盖账户和凭据边界。 |
 | memo 创建、列表、详情、更新、删除 | 已实现 | 已测试 | `POST/GET /api/v1/memos`、`GET/PATCH/DELETE /api/v1/memos/{memo}`；支持 current `{ memo: {...} }` wrapper、有限 `pageSize`、`pageToken`、`orderBy`、filter 和 `updateMask`。 |
 | memo 字段、状态、可见性、tags、property、location | 已实现 | 已测试 | 已做 DTO/枚举映射；FlareMo 的 trash/deleted 与 current Memos 状态模型并非完全相同。 |
 | memo 附件、relations、comments、reactions | 已实现 | 已测试 | `memos/{memo}/attachments`、`relations`、`comments`、`reactions` 的 current 子集；完整上游资源语义仍未证明。 |
@@ -69,7 +69,7 @@ Better Auth 是应用层认证事实源，Cloudflare Access 只能作为可选�
 | current PAT 资源 | 已实现 | 已测试 | `/api/v1/users/{user}/personalAccessTokens` 的 list/create/revoke；PAT 不能反过来管理 PAT。 |
 | link metadata | 已实现 | 已测试 | Connect `GetLinkMetadata` / `BatchGetLinkMetadata` 提供受限 Open Graph 抓取；限制 HTTP(S)、redirect、HTML 大小和内网字面量地址。完整 DNS rebinding/egress policy 仍是部署边界。 |
 | 标准错误 | 已实现 | 已测试 | current 错误使用 `{ code, message, details }`；Better Auth 无效凭据映射为 Memos 风格 `400` / code `3`。 |
-| current OpenAPI | 已实现 | 已测试 | `GET /openapi.json` 及认证后的 current 文档；`memos-compatibility.test.ts` 检查 current/legacy wire 文档和主要路径。 |
+| current OpenAPI | 已实现 | 已测试 | `GET /openapi.json` 及认证后的 current 文档；`apps/worker/src/compatibility/*.test.ts` 检查 current/legacy wire 文档和主要路径。 |
 
 ### current filter / order 边界
 
@@ -158,9 +158,9 @@ Worker 提供 canonical `memos.api.v1/{Service}/{Method}` 的 HTTP unary adapter
 
 - `apps/worker/src/auth.test.ts`：Better Auth bootstrap、cookie session、账户变更、Origin、session/PAT 撤销和恢复边界。
 - `apps/worker/src/memos-auth-golden.test.ts`：固定测试时间和 test-only token id 下的 FlareMo access/refresh JWT 与 refresh rotation golden bytes；这证明 FlareMo 自己的确定性，不证明 Memos 上游版本级 parity。
-- `apps/worker/src/memos-compatibility.test.ts`：current/legacy REST、memo/attachment/share、PAT、native auth facade、OpenAPI、MCP contract。
+- `apps/worker/src/compatibility/*.test.ts`（8 文件）：current REST facade、auth、MCP、export/import、memo DTO/query、OpenAPI、share 隔离。
 - `apps/worker/src/memos-social.test.ts`：comments、reactions、shortcuts 和错误/Origin 边界。
-- `apps/worker/src/memos-transport.test.ts`：native JWT、refresh cookie、Connect JSON、UserService webhook/notification 资源的部分 transport、部分新增 service、protobuf/gRPC-Web framing、SSE 和 canonical share RPC。
+- `apps/worker/src/transport/*.test.ts`（7 文件）：native JWT、refresh cookie、Connect JSON/binary、UserService webhook/notification、protobuf/gRPC-Web framing、SSE。
 - `apps/worker/src/memos-protobuf.test.ts`：media type、请求 field number、部分 response serialization、gRPC-Web unary data/trailer frame 和 binary error status。
 - `apps/worker/src/memos-connect-client.test.ts`：使用官方 generated `MemoService`、`UserService` 和 `@connectrpc/connect-web`，对 Connect binary 与 gRPC-Web binary 做有限的 schema-decoded unary smoke，包括 UserService webhook/notification 方法；不代表完整官方 Web 或第三方客户端兼容。
 - `apps/worker/src/mcp-streamable.test.ts`：无状态 Streamable HTTP MCP 的初始化、工具列表、调用错误和 legacy route。

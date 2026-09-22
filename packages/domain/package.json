@@ -1,7 +1,7 @@
 {
   "name": "@flaremo/domain",
   "license": "AGPL-3.0-only",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
@@ -16,7 +16,8 @@
     "@flaremo/contracts": "workspace:*",
     "@flaremo/db": "workspace:*",
     "@marcbachmann/cel-js": "8.0.0",
-    "drizzle-orm": "^0.45.1"
+    "drizzle-orm": "^0.45.1",
+    "transliteration": "^2.6.1"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

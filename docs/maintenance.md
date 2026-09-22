@@ -89,7 +89,7 @@ D1 备份建议使用 Cloudflare dashboard 或 Wrangler 导出能力生成 SQL d
 
 认证表也属于 D1 的持久业务数据。它们包含 session、账户关联和 PAT 的敏感校验数据，备份文件必须按生产数据同等敏感级别保存；不要把导出文件上传到 issue、聊天或公开 artifact。
 
-不要在文档或临时 shell 命令里维护第二份手写表清单。唯一清单在 [`scripts/persistence-manifest.mjs`](../scripts/persistence-manifest.mjs)：其中的 `RESTORE_TABLES` 覆盖身份、memo/SSE/webhook/通知、附件、导入导出任务、Agent Memory、用量、项目与任务等所有 D1 事实源表；`embedding_tasks` 则属于可由事实源重建的派生工作队列。`pnpm persistence:check` 会把这份清单与 `packages/db/src/schema.ts` 的每一个 `sqliteTable` 对比，少表、多表或重复分类都会失败；它也是 `pnpm verify` 的第一道门禁。
+不要在文档或临时 shell 命令里维护第二份手写表清单。唯一清单在 [`scripts/persistence-manifest.mjs`](../scripts/persistence-manifest.mjs)：其中的 `RESTORE_TABLES` 覆盖身份、memo/SSE/webhook/通知、附件、导入导出任务、Agent Memory、用量、项目与任务等所有 D1 事实源表；`embedding_tasks` 则属于可由事实源重建的派生工作队列。`pnpm persistence:check` 会把这份清单与 `packages/db/src/schema/` 下每个模块的每一个 `sqliteTable` 对比，少表、多表或重复分类都会失败；它也是 `pnpm verify` 的第一道门禁。
 
 日常演练请直接使用 `pnpm backup:drill`，真实远端恢复验证使用 `pnpm backup:drill:remote`。两个脚本从同一清单生成 Wrangler 的 `--table` 参数、按依赖顺序的恢复文件和源/目标逐表计数校验。每次认证或 schema 变更后仍需重新演练，不要把旧的 drill 结果当作新的恢复证明。
 

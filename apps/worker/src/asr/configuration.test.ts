@@ -1,14 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { openVoiceCredentials, sealVoiceCredentials } from "./configuration";
+import {
+  configuredVoice,
+  openVoiceCredentials,
+  resolveVoiceService,
+  sealVoiceCredentials,
+  type VoiceCredentials,
+} from "./configuration";
 
 const key = "test-only-encryption-key-with-at-least-32-characters";
-const value = {
-  provider: "tencent" as const,
+const value: VoiceCredentials = {
+  provider: "tencent",
   model: "",
   appId: "1234",
   secretId: "test-id",
   secretKey: "test-sensitive-value",
   apiKey: "",
+  volcAppId: "",
+  volcAccessToken: "",
+  volcBoostingTable: "",
+  volcCorrectTable: "",
+  minimaxBaseUrl: "",
 };
 describe("voice credential envelope", () => {
   it("uses fresh nonces, round trips and never stores plaintext with a key", async () => {
@@ -31,5 +42,42 @@ describe("voice credential envelope", () => {
     expect(await openVoiceCredentials(undefined, plain)).toEqual(value);
     const encrypted = await sealVoiceCredentials(key, value);
     await expect(openVoiceCredentials(undefined, encrypted)).rejects.toThrow();
+  });
+});
+
+describe("voice service resolution", () => {
+  it("classifies MiniMax credentials as the batch capability", () => {
+    const batch = configuredVoice({
+      ...value,
+      provider: "minimax",
+      apiKey: "test-minimax-key",
+    });
+    expect(batch).toMatchObject({ kind: "batch", id: "minimax" });
+    expect(
+      configuredVoice({ ...value, provider: "minimax", apiKey: "" }),
+    ).toBeNull();
+    expect(
+      configuredVoice({ ...value, apiKey: "test-minimax-key" }),
+    ).toMatchObject({ kind: "streaming", id: "tencent" });
+  });
+  it("environment credentials resolve before the database copy", async () => {
+    const db = {
+      query: {
+        voiceServiceConfig: {
+          findFirst: () => {
+            throw new Error("database should not be reached");
+          },
+        },
+      },
+    } as unknown as Parameters<typeof resolveVoiceService>[1];
+    await expect(
+      resolveVoiceService(
+        {
+          FLAREMO_ASR_PROVIDER: "minimax",
+          FLAREMO_ASR_MINIMAX_API_KEY: "test-minimax-key",
+        },
+        db,
+      ),
+    ).resolves.toMatchObject({ kind: "batch", id: "minimax" });
   });
 });

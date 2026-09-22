@@ -1,10 +1,25 @@
-import type { FlareMoDb, UserRow } from "@flaremo/db";
+import type { FlareMoDb, MemoRow, UserRow } from "@flaremo/db";
 import { memoRevisions } from "@flaremo/db";
 import { and, desc, eq, lt } from "drizzle-orm";
-import { NotFoundError } from "./errors";
+import { ForbiddenError, NotFoundError } from "./errors";
 import { parseResourceName } from "./ids";
-import { getMemoById, updateMemo } from "./memos";
-import { assertCanEditMemo } from "./team-permissions";
+import { getMemoById } from "./memos-read";
+import { updateMemo } from "./memos-write";
+import { canGovernMemo } from "./team-permissions";
+
+/**
+ * Reading revision history is a governance read (docs/content-authority.md
+ * D2): administrators and the owner may audit what a memo previously said,
+ * while restoring an old revision stays author-only via updateMemo's
+ * canEditMemo gate.
+ */
+function assertCanReadRevisions(user: UserRow, memo: MemoRow): void {
+  if (!canGovernMemo(user, memo)) {
+    throw new ForbiddenError(
+      "You do not have permission to read this memo's revisions.",
+    );
+  }
+}
 
 export async function listMemoRevisions(
   db: FlareMoDb,
@@ -16,7 +31,7 @@ export async function listMemoRevisions(
   const memo = await getMemoById(db, user, normalizedMemoId, {
     includeDeleted: true,
   });
-  assertCanEditMemo(user, memo);
+  assertCanReadRevisions(user, memo);
   const rows = await db
     .select()
     .from(memoRevisions)
@@ -43,7 +58,7 @@ export async function getMemoRevision(
   const memo = await getMemoById(db, user, revision.memoId, {
     includeDeleted: true,
   });
-  assertCanEditMemo(user, memo);
+  assertCanReadRevisions(user, memo);
   if (memo.userId !== user.id && revision.visibility === "private") {
     throw new NotFoundError("Memo revision not found");
   }

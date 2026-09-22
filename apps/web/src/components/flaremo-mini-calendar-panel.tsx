@@ -1,36 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { AlertCircleIcon } from "lucide-react";
 import { useMemo } from "react";
-import type { MemoStatsResponse } from "@/api";
 import { listTasks } from "@/api";
-import { FlareMoMiniCalendar } from "@/components/flaremo-calendar";
 import { useI18n } from "@/i18n";
 import {
   buildMonthGrid,
-  dayFilterQuery,
   monthOf,
   todayKey,
   type WeekStart,
 } from "@/lib/calendar-date";
+import { queryKeys } from "@/lib/query-keys";
 
-// Explorer-side glanceable calendar. Notes come from the activity feed the
-// heatmap already loaded (last 90 days, always covering the current month);
-// dues are read straight from the user's task list. Clicking a day filters
-// the timeline to that day.
-//
-// Reminders are exported separately because the explorer keeps them mounted
-// above the trend/calendar switch: switching to the trend view must not hide
-// open work.
+// Reminders shown above the time horizon in the explorer: open tasks due today
+// or overdue. Deep-links straight to /projects where the user can manage and
+// resolve them.
 
-// Open dues inside the visible month grid, keyed by day, plus the two roll-ups
-// the reminders show. Both roll-ups are scoped to the grid so「本月已逾期」keeps
-// meaning this month rather than all time. Mirrors what the mini calendar
-// highlights, so the reminders and the grid never disagree.
 function useOpenTasks(rangeStart: string, rangeEnd: string) {
   const today = useMemo(() => todayKey(), []);
   const tasksQuery = useQuery({
-    queryKey: ["tasks"],
+    queryKey: queryKeys.tasks.all,
     queryFn: () => listTasks(),
   });
   return useMemo(() => {
@@ -50,7 +39,7 @@ function useOpenTasks(rangeStart: string, rangeEnd: string) {
 
 function currentMonthGrid(locale: string, today: string) {
   const weekStart: WeekStart = locale.startsWith("en") ? "sunday" : "monday";
-  return buildMonthGrid(monthOf(today), weekStart);
+  return buildMonthGrid(monthOf(today), weekStart, true);
 }
 
 export function MiniCalendarReminders() {
@@ -61,71 +50,28 @@ export function MiniCalendarReminders() {
     grid[0].key,
     grid[grid.length - 1].key,
   );
+
   if (dueToday <= 0 && overdue <= 0) return null;
   return (
     <>
       {dueToday > 0 && (
         <Link
-          className="mb-1.5 flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-flame-700 dark:text-flame-200 bg-flame-100 dark:bg-flame-400/12 motion-safe:transition-colors motion-safe:duration-150 hover:bg-flame-100/80 dark:hover:bg-flame-400/20 focus-visible:ring-2 focus-visible:ring-ring"
+          className="mb-1.5 flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-medium text-brand-700 dark:text-brand-200 bg-brand-100 dark:bg-brand-400/12 motion-safe:transition-colors motion-safe:duration-150 hover:bg-brand-100/80 dark:hover:bg-brand-400/20 focus-visible:ring-2 focus-visible:ring-ring"
           data-testid="mini-calendar-today-notice"
-          to="/calendar"
+          to="/projects"
         >
           <AlertCircleIcon className="shrink-0" />
           {t("calendar.overdueToday", { count: dueToday })}
         </Link>
       )}
       {overdue > 0 && (
-        <p className="mb-1 px-1 text-xs text-destructive">
+        <Link
+          className="mb-1 block px-1 text-xs text-destructive underline-offset-2 hover:underline"
+          to="/projects"
+        >
           {t("calendar.overdueCount", { count: overdue })}
-        </p>
+        </Link>
       )}
     </>
-  );
-}
-
-export function MiniCalendarPanel({
-  activity,
-}: {
-  activity: MemoStatsResponse["activity"];
-}) {
-  const { locale } = useI18n();
-  const navigate = useNavigate();
-  const today = useMemo(() => todayKey(), []);
-  const monthKey = monthOf(today);
-  const weekStart: WeekStart = locale.startsWith("en") ? "sunday" : "monday";
-  const grid = useMemo(
-    () => buildMonthGrid(monthKey, weekStart),
-    [monthKey, weekStart],
-  );
-  const rangeStart = grid[0].key;
-  const rangeEnd = grid[grid.length - 1].key;
-  const notes = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const entry of activity) {
-      if (
-        entry.count > 0 &&
-        entry.date >= rangeStart &&
-        entry.date <= rangeEnd
-      ) {
-        map.set(entry.date, entry.count);
-      }
-    }
-    return map;
-  }, [activity, rangeStart, rangeEnd]);
-
-  const { map: openTasks } = useOpenTasks(rangeStart, rangeEnd);
-
-  const jump = (day: string) => {
-    void navigate({ to: `/?q=${encodeURIComponent(dayFilterQuery(day))}` });
-  };
-
-  return (
-    <FlareMoMiniCalendar
-      monthKey={monthKey}
-      notes={notes}
-      tasks={openTasks}
-      today={today}
-      onDayClick={jump}
-    />
   );
 }

@@ -1,38 +1,69 @@
 import type { UseQueryResult } from "@tanstack/react-query";
-import type { VectorUsageReport } from "@/api";
-import { InfoTip } from "@/components/info-tip";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ActivityIcon, CloudIcon, GaugeIcon, InfoIcon } from "lucide-react";
+import type { CloudflareUsageReport, VectorUsageReport } from "@/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { TranslationKey } from "@/i18n";
 import { formatBytes } from "@/lib/utils";
+import { SettingsRow, SettingsSectionGroup } from "./apple-settings-ui";
 
 type UsagePanelProps = {
   t: (key: TranslationKey) => string;
   vectorUsageQuery: UseQueryResult<VectorUsageReport, Error>;
+  cfUsageQuery: UseQueryResult<CloudflareUsageReport, Error>;
 };
 
-export function UsagePanel({ t, vectorUsageQuery }: UsagePanelProps) {
+export function UsagePanel({
+  t,
+  vectorUsageQuery,
+  cfUsageQuery,
+}: UsagePanelProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t("usage.vectorTitle")}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5">
+      <SettingsSectionGroup
+        title={t("usage.vectorTitle")}
+        footer={
+          <span className="flex items-start gap-1.5 pt-1 text-xs text-muted-foreground">
+            <InfoIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+            <span>{t("usage.disclaimer")}</span>
+          </span>
+        }
+      >
         {vectorUsageQuery.isLoading ? (
-          <Skeleton className="h-24 w-full" />
+          <div className="p-4">
+            <Skeleton className="h-24 w-full" />
+          </div>
         ) : vectorUsageQuery.isError || !vectorUsageQuery.data ? (
-          <p className="text-sm text-muted-foreground">
+          <div className="p-4 text-sm text-muted-foreground">
             {t("usage.vectorUnavailable")}
-          </p>
+          </div>
         ) : (
-          <VectorUsagePanel report={vectorUsageQuery.data} t={t} />
+          <VectorUsageContent report={vectorUsageQuery.data} t={t} />
         )}
-      </CardContent>
-    </Card>
+      </SettingsSectionGroup>
+      {cfUsageQuery.data?.available &&
+      (cfUsageQuery.data.workers ||
+        cfUsageQuery.data.d1 ||
+        cfUsageQuery.data.r2) ? (
+        <SettingsSectionGroup
+          title={t("usage.cfTitle")}
+          footer={
+            <span className="flex items-start gap-1.5 pt-1 text-xs text-muted-foreground">
+              <InfoIcon
+                aria-hidden="true"
+                className="mt-0.5 size-3.5 shrink-0"
+              />
+              <span>{t("usage.cfDisclaimer")}</span>
+            </span>
+          }
+        >
+          <CloudflareUsageContent report={cfUsageQuery.data} t={t} />
+        </SettingsSectionGroup>
+      ) : null}
+    </div>
   );
 }
 
-function VectorUsagePanel({
+function VectorUsageContent({
   report,
   t,
 }: {
@@ -47,41 +78,107 @@ function VectorUsagePanel({
     (sum, index) => sum + index.vectors_count,
     0,
   );
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-6 text-sm">
-        <span className="text-muted-foreground">
-          {t("usage.model")}: {report.model}
-        </span>
-        <span className="text-muted-foreground">
-          {t("usage.dimensions")}: {report.dimensions}
-        </span>
-        <span className="text-muted-foreground">
-          {t("usage.vectors")}: {totalVectors}
-        </span>
+    <div className="flex flex-col divide-y divide-border/40">
+      <SettingsRow
+        icon={GaugeIcon}
+        label={t("usage.model")}
+        value={report.model}
+      />
+      <SettingsRow
+        label={t("usage.vectors")}
+        value={`${totalVectors.toLocaleString()} (${report.dimensions} dim)`}
+      />
+      <div className="p-4 flex flex-col gap-4">
+        <UsageBar
+          hint={t("usage.storedHint")}
+          label={t("usage.stored")}
+          used={totalStored}
+          limit={report.stored_limit}
+        />
+        <UsageBar
+          label={t("usage.queried")}
+          used={report.queried_dimensions_this_month}
+          limit={report.queried_limit}
+        />
+        {report.plan && <PlanQuotaBars plan={report.plan} t={t} />}
       </div>
-      <UsageBar
-        label={t("usage.stored")}
-        used={totalStored}
-        limit={report.stored_limit}
-      />
-      <UsageBar
-        label={t("usage.queried")}
-        used={report.queried_dimensions_this_month}
-        limit={report.queried_limit}
-      />
-      {report.plan && <PlanQuotaBars plan={report.plan} t={t} />}
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <InfoTip text={t("usage.disclaimer")} />
-        <span className="sr-only">{t("usage.disclaimer")}</span>
-      </p>
     </div>
   );
 }
 
-// Used-vs-limit rows for the injectable plan quotas. Rows with a null limit
-// (self-hosted default) stay hidden so the panel stays noise-free; when every
-// limit is null there is nothing to render.
+function CloudflareUsageContent({
+  report,
+  t,
+}: {
+  report: CloudflareUsageReport;
+  t: (key: TranslationKey) => string;
+}) {
+  const locale = (value: number) => value.toLocaleString();
+  return (
+    <div className="flex flex-col divide-y divide-border/40">
+      <SettingsRow
+        icon={ActivityIcon}
+        label={t("usage.cfPeriod")}
+        value={`${report.window.since.slice(0, 10)} ~ ${report.window.until.slice(0, 10)} (UTC)`}
+      />
+      {report.workers && (
+        <SettingsRow
+          label={t("usage.cfWorkerRequests")}
+          value={report.workers.requests.toLocaleString()}
+        />
+      )}
+      {report.d1 && (
+        <>
+          <SettingsRow
+            icon={CloudIcon}
+            label={t("usage.cfD1Storage")}
+            value={
+              report.d1.storageBytes !== null
+                ? formatBytes(report.d1.storageBytes)
+                : "—"
+            }
+          />
+          <SettingsRow
+            label={t("usage.cfD1Rows")}
+            value={`${report.d1.rowsRead.toLocaleString()} / ${report.d1.rowsWritten.toLocaleString()}`}
+          />
+        </>
+      )}
+      {report.r2 && (
+        <>
+          <SettingsRow
+            label={t("usage.cfR2Storage")}
+            value={
+              report.r2.storageBytes !== null
+                ? formatBytes(report.r2.storageBytes)
+                : "—"
+            }
+          />
+          <SettingsRow
+            label={t("usage.cfR2Objects")}
+            value={
+              report.r2.objectCount !== null
+                ? report.r2.objectCount.toLocaleString()
+                : "—"
+            }
+          />
+          <SettingsRow
+            label={t("usage.cfR2Ops")}
+            value={`${locale(report.r2.classAOps)} / ${locale(report.r2.classBOps)}`}
+          />
+        </>
+      )}
+      {report.errors.length > 0 && (
+        <div className="p-4 text-xs text-muted-foreground">
+          {t("usage.cfPartial")} ({report.errors.join("; ")})
+        </div>
+      )}
+    </div>
+  );
+}
+
 type QuotaRow = {
   key: TranslationKey;
   used: number;
@@ -199,11 +296,13 @@ function PlanQuotaBars({
 
 function UsageBar({
   label,
+  hint,
   used,
   limit,
   formatValue,
 }: {
   label: string;
+  hint?: string;
   used: number;
   limit: number;
   formatValue?: (value: number) => string;
@@ -212,17 +311,24 @@ function UsageBar({
   const percent = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-baseline justify-between text-sm">
-        <span>{label}</span>
-        <span className="text-muted-foreground tabular-nums">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+        <span className="flex items-baseline gap-2">
+          <span>{label}</span>
+          {hint ? (
+            <span className="text-xs text-muted-foreground">{hint}</span>
+          ) : null}
+        </span>
+        <span className="ml-auto text-muted-foreground tabular-nums">
           {format(used)} / {format(limit)}
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-flame-500 transition-[width]"
-          style={{ width: `${percent}%` }}
-        />
+        {percent > 0 ? (
+          <div
+            className="h-full min-w-4 rounded-full bg-primary transition-[width]"
+            style={{ width: `${percent}%` }}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -85,10 +85,6 @@ export async function getShareByIdOrToken(
   return row;
 }
 
-export async function listShares(db: FlareMoDb, user: UserRow) {
-  return db.select().from(shares).where(eq(shares.userId, user.id));
-}
-
 export async function listMemoShares(
   db: FlareMoDb,
   user: UserRow,

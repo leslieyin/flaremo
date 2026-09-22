@@ -1,11 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, Navigate, useSearch } from "@tanstack/react-router";
+import { Loader2Icon } from "lucide-react";
 import { useState } from "react";
 import { getBootstrapStatus, getRegistrationStatus } from "@/api";
+import { getAuthProviders } from "@/api/integrations";
 import { authClient } from "@/auth-client";
 import { AuthPageFrame } from "@/components/auth-page-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useI18n } from "@/i18n";
 import { errorMessage } from "@/lib/error";
 
@@ -26,10 +29,46 @@ export function LoginPage() {
     queryFn: getRegistrationStatus,
     retry: false,
   });
-  const [email, setEmail] = useState("");
+  const providersQuery = useQuery({
+    queryKey: ["auth-providers"],
+    queryFn: getAuthProviders,
+    staleTime: 60_000,
+  });
+  const [account, setAccount] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [socialPending, setSocialPending] = useState<string | null>(null);
+
+  const socialProviders = [
+    ...(providersQuery.data?.google ? ["google"] : []),
+    ...(providersQuery.data?.github ? ["github"] : []),
+  ];
+
+  const handleSocialSignIn = async (provider: "google" | "github") => {
+    setFormError(null);
+    setSocialPending(provider);
+    try {
+      const result = await authClient.signIn.social({
+        provider,
+        callbackURL:
+          redirect && !redirect.startsWith("/login") ? redirect : "/",
+      });
+      if (result.error) {
+        throw result.error;
+      }
+      // The server returns the provider's authorization URL; complete the
+      // round trip in this tab.
+      if (result.data?.url) {
+        window.location.href = result.data.url;
+        return;
+      }
+      setSocialPending(null);
+    } catch (error) {
+      setSocialPending(null);
+      setFormError(errorMessage(error, t("auth.loginFailed")));
+    }
+  };
 
   if (session.data?.user) {
     // Single navigation owner: the session render branch decides where to go,
@@ -65,13 +104,29 @@ export function LoginPage() {
   const handleSubmit = async () => {
     setFormError(null);
     setIsSubmitting(true);
+    const trimmed = account.trim();
+    const isExplicitHandle = trimmed.startsWith("@");
+    const isEmail =
+      !isExplicitHandle && trimmed.includes("@") && trimmed.includes(".");
+
     try {
-      const result = await authClient.signIn.email({
-        password,
-        email: email.trim(),
-      });
-      if (result.error) {
-        throw result.error;
+      if (isEmail) {
+        const result = await authClient.signIn.email({
+          password,
+          email: trimmed,
+        });
+        if (result.error) {
+          throw result.error;
+        }
+      } else {
+        const username = trimmed.replace(/^@/, "");
+        const result = await authClient.signIn.username({
+          password,
+          username,
+        });
+        if (result.error) {
+          throw result.error;
+        }
       }
       setPassword("");
     } catch (error) {
@@ -105,20 +160,21 @@ export function LoginPage() {
       >
         <label
           className="flex flex-col gap-1.5 text-sm font-medium"
-          htmlFor="login-email"
+          htmlFor="login-account"
         >
-          {t("auth.email")}
+          {t("auth.emailOrUsername")}
           <Input
             autoCapitalize="none"
-            autoComplete="email"
+            autoComplete="username"
             disabled={isSubmitting}
-            id="login-email"
+            id="login-account"
             maxLength={320}
-            name="email"
+            name="account"
+            placeholder={t("auth.emailOrUsernamePlaceholder")}
             required
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            type="text"
+            value={account}
+            onChange={(event) => setAccount(event.target.value)}
           />
         </label>
         <label
@@ -126,13 +182,12 @@ export function LoginPage() {
           htmlFor="login-password"
         >
           {t("auth.password")}
-          <Input
+          <PasswordInput
             autoComplete="current-password"
             disabled={isSubmitting}
             id="login-password"
             name="password"
             required
-            type="password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
@@ -150,6 +205,34 @@ export function LoginPage() {
         >
           {isSubmitting ? t("auth.signingIn") : t("auth.signIn")}
         </Button>
+        {socialProviders.length > 0 && (
+          <div className="flex flex-col gap-2 border-t pt-3">
+            <p className="text-center text-muted-foreground text-xs">
+              {t("auth.socialSignInHint")}
+            </p>
+            {socialProviders.map((provider) => (
+              <Button
+                disabled={socialPending !== null || isSubmitting}
+                key={provider}
+                type="button"
+                variant="outline"
+                onClick={() =>
+                  void handleSocialSignIn(provider as "google" | "github")
+                }
+              >
+                {socialPending === provider && (
+                  <Loader2Icon
+                    className="animate-spin"
+                    data-icon="inline-start"
+                  />
+                )}
+                {provider === "google"
+                  ? t("auth.continueWithGoogle")
+                  : t("auth.continueWithGithub")}
+              </Button>
+            ))}
+          </div>
+        )}
         <p className="text-center text-sm">
           <Link
             className="text-muted-foreground underline-offset-4 hover:underline"
@@ -168,6 +251,10 @@ export function LoginPage() {
             </Link>
           </p>
         )}
+        {/* Always-present trailing slot: the register link appears here once
+            the public status lands, and the row keeps its height so the
+            buttons above never shift. */}
+        <div aria-hidden="true" className="min-h-6" />
       </form>
     </AuthPageFrame>
   );

@@ -193,7 +193,16 @@ async function verifyTencentCaptcha(
     // CaptchaCode 1 = verified; anything else (ticket replay, expired,
     // mismatch) is a failure.
     return body.Response?.CaptchaCode === 1;
-  } catch {
+  } catch (error) {
+    // A false result here looks like a failed user challenge; without a log,
+    // provider outages are indistinguishable from bad tickets.
+    console.error(
+      JSON.stringify({
+        level: "error",
+        message: "Captcha verify request failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
     return false;
   }
 }
@@ -219,7 +228,16 @@ async function verifyHttpCaptcha(
       success?: boolean;
     };
     return body.success !== false;
-  } catch {
+  } catch (error) {
+    // Same observability gap as the Tencent path: an unreachable verifier
+    // fails closed, so the failure must be visible server-side.
+    console.error(
+      JSON.stringify({
+        level: "error",
+        message: "Captcha verify request failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
     return false;
   }
 }

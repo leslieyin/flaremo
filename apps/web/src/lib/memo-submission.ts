@@ -6,6 +6,10 @@ import {
 } from "@/api";
 import type { TranslationKey } from "@/i18n";
 import type { MemoCaptureInput } from "@/lib/local-memo-capture";
+import {
+  MAX_UPLOAD_BYTES,
+  willCompressOnUpload,
+} from "@/lib/upload-compression";
 
 export async function createMemoWithAttachments(input: MemoCaptureInput) {
   const memo = await createMemo({
@@ -72,7 +76,16 @@ export function validateMemoCaptureSubmission(
   if (input.files.length > 100) {
     return new Error(t("toast.tooManyAttachments"));
   }
-  if (input.files.some((file) => file.size > 25 * 1024 * 1024)) {
+  // A file over the cap is only rejected when nothing downstream can shrink it:
+  // transcode-before-upload exists precisely for oversized photos and
+  // recordings, so sending those back with "too large" would refuse the case
+  // the feature was built for. Anything the pipeline will not touch (an
+  // already-compressed video, a huge PDF) still fails here, before the user
+  // waits through an upload the server is going to reject.
+  const oversized = input.files.some(
+    (file) => file.size > MAX_UPLOAD_BYTES && !willCompressOnUpload(file),
+  );
+  if (oversized) {
     return new Error(t("toast.attachmentTooLarge"));
   }
   return undefined;

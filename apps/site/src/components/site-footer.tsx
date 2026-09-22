@@ -156,11 +156,6 @@ export function SiteFooter({ locale }: SiteFooterProps) {
             {text.tagline}
           </p>
 
-          <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Cloudflare Edge Global</span>
-          </div>
-
           <p className="text-xs text-fog">
             © {new Date().getFullYear()} FlareMo · Open Source with AGPL-3.0
           </p>

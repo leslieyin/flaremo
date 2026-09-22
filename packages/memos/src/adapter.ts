@@ -40,6 +40,7 @@ export function memoToDto(
     update_time: memo.updatedAt,
     display_time: memo.createdAt,
     creator: memo.userId,
+    source: memo.source,
     ...(creatorName ? { creator_name: creatorName } : {}),
   };
 }
@@ -130,10 +131,6 @@ export function parseMemosResourceName(name: string) {
 
 export function parseAttachmentsResourceName(name: string) {
   return parseResourceName(name, "attachments");
-}
-
-export function parseSharesResourceName(name: string) {
-  return parseResourceName(name, "shares");
 }
 
 function parseResourceName(

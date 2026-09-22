@@ -43,7 +43,10 @@ export type UsageMetric =
   | "queried_dims"
   | "embedding_tokens"
   | "embedding_calls"
-  | "search_queries";
+  | "search_queries"
+  // Seconds of uploaded audio transcribed through batch ASR (MiniMax),
+  // attributed per user so shared deployments can explain provider cost.
+  | "asr_seconds";
 
 async function readCounter(
   db: FlareMoDb,

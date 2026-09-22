@@ -29,6 +29,7 @@
 - Cloudflare Access 是可选的外层防线，生产迁移期建议保留。启用 Access 时，客户端必须同时通过 Access policy 和 FlareMo 应用层认证；Access Service Token 本身不等于 FlareMo 用户 session，也不能单独访问私有 API。
 - 公开分享路径可以 bypass Access，但分享内容仍由 FlareMo 的 share token、过期时间和 memo 状态校验。公开分享不接受浏览器 session 或 PAT 作为分享授权的替代物。
 - `BETTER_AUTH_SECRET`、`FLAREMO_BOOTSTRAP_SECRET` 和可选的 `FLAREMO_RECOVERY_SECRET` 不得放入 `wrangler.jsonc`、`.dev.vars.example` 的真实值、Git、issue、PR、日志或聊天；生产环境应使用 `wrangler secret put` 或 Cloudflare 控制台配置。
+- 凭据端点（sign-in / sign-up / 忘记密码 / 重置密码）的边缘节流是资源加固而非正确性门禁：限流走可选的 Cloudflare rate-limiting 绑定（`RATE_LIMITER`），绑定缺失或绑定调用失败时一律 fail-open 放行。未配置该绑定的部署（如免费档或未加绑定的自托管实例）没有这层节流，防暴力破解完全依赖 Better Auth 自身的密码强度与认证逻辑；部署者如需该层防护，应在 wrangler 配置中绑定 rate limiting 并按官方文档设置限额。
 
 ### Origin 与凭据类型
 

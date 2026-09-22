@@ -49,7 +49,7 @@ export function MemoOutline({
               entry.depth > 2 && "pl-5",
               entry.depth === 2 && "pl-3.5",
               activeId === entry.id
-                ? "bg-flame-50 font-medium text-flame-700 dark:bg-flame-400/12 dark:text-flame-200"
+                ? "bg-brand-50 text-brand-700 dark:bg-brand-400/12 dark:text-brand-200"
                 : "text-muted-foreground",
             )}
             href={`#${entry.id}`}

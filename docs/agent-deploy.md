@@ -19,7 +19,7 @@
 ## 禁止事项
 
 - 不要新增 CI workflow 或部署自动化。`ci.yml` 是唯一的 check workflow（format / lint / typecheck / 单元测试）；`flaremo-update.yml` 只在用户部署仓库中准备上游升级 PR。GitHub Actions 永远不做生产部署器。
-- 不要绕过 `pnpm verify` 直接部署。
+- 全量门禁 `pnpm verify` 仅在维护者明确要求时运行；常规部署直接执行本地部署脚本（`deploy-kosx.mjs` 默认不跑 verify，需要时用 `--verify`）。
 - 不要把 `Temp/`、`node_modules/`、`dist/`、`.wrangler/` 提交。
 - 不要新增绕开 Better Auth 的登录、共享密码或第二套 Bearer token；机器访问使用已撤销能力的 `memos_pat_` PAT。
 - 不要把 D1 主数据迁移到 KV、R2 或 Vectorize。
@@ -38,11 +38,13 @@ git status --short
 pnpm install
 ```
 
-本地质量门禁：
+本地质量门禁（定向，默认）：
 
 ```bash
-pnpm verify
+pnpm exec vitest run <改动相关的测试文件>
 ```
+
+全量 `pnpm verify` 仅在维护者明确要求时运行。
 
 Cloudflare 打包验证：
 

@@ -8,6 +8,11 @@ import { useMemoMutations } from "@/hooks/use-memo-mutations";
 import { useNewMemoCapture } from "@/hooks/use-new-memo-capture";
 import { useI18n } from "@/i18n";
 import {
+  createArticleWithAttachments,
+  MAX_ARTICLE_CONTENT_LENGTH,
+} from "@/lib/article-submission";
+import { focusComposerInput } from "@/lib/composer-focus";
+import {
   enqueueMemoSubmission,
   flushQueuedMemoSubmissions,
   getNewMemoDraftId,
@@ -20,6 +25,7 @@ import {
   shouldQueueAfterFailure,
   validateMemoCaptureSubmission,
 } from "@/lib/memo-submission";
+import { stripResourceName } from "@/lib/utils";
 
 // The composer's send target defaults to the active space ("归属在创建时决定").
 // An explicit pick is remembered per space so a member who publishes to the
@@ -54,13 +60,17 @@ export const WorkspaceComposer = memo(function WorkspaceComposer({
   composeRequested,
   space,
   hasTeam,
+  tags,
+  captureAvailable,
 }: {
   visible: boolean;
   composeRequested: boolean;
   space: MemoSpace;
   hasTeam: boolean;
+  tags?: Array<{ name: string; count: number }>;
+  captureAvailable?: boolean;
 }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const navigate = useNavigate({ from: "/" });
   const [newMemoDraftId] = useState(getNewMemoDraftId);
   const [visibilityPref, setVisibilityPref] =
@@ -148,11 +158,7 @@ export const WorkspaceComposer = memo(function WorkspaceComposer({
   // strip the flag so a later reload does not steal focus again.
   useEffect(() => {
     if (!composeRequested || !visible) return;
-    const composer = document.getElementById("flaremo-composer-input");
-    if (composer instanceof HTMLTextAreaElement) {
-      composer.focus();
-      composer.setSelectionRange(composer.value.length, composer.value.length);
-    }
+    focusComposerInput();
     void navigate({
       replace: true,
       search: (current) => ({ ...current, compose: undefined }),
@@ -211,12 +217,52 @@ export const WorkspaceComposer = memo(function WorkspaceComposer({
     }
   };
 
+  const handleArticleSubmit = async (input: MemoCaptureInput) => {
+    if (isCaptureSubmitting.current) return;
+
+    if (!isBrowserOnline()) {
+      toast.error(t("composer.article.offlineBlocked"));
+      return;
+    }
+
+    if (input.content.length > MAX_ARTICLE_CONTENT_LENGTH) {
+      toast.error(t("composer.article.tooLong"));
+      return;
+    }
+
+    isCaptureSubmitting.current = true;
+    setIsCaptureSubmissionPending(true);
+    try {
+      const article = await createArticleWithAttachments(input, {
+        title: input.title,
+        lang: locale,
+      });
+      await capture.discardDraft();
+      toast.success(t("toast.saved"));
+      navigate({
+        to: "/articles/$articleId/edit",
+        params: { articleId: stripResourceName(article.id, "articles") },
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message === "article-too-long") {
+        toast.error(t("composer.article.tooLong"));
+      } else {
+        toast.error(t("article.createFailed"));
+      }
+    } finally {
+      isCaptureSubmitting.current = false;
+      setIsCaptureSubmissionPending(false);
+    }
+  };
+
   if (!visible) return null;
   return (
     <MemoComposer
       draft={capture.draft}
       isPending={isCreatingMemo || isCaptureSubmissionPending}
       showVisibility={hasTeam}
+      tags={tags}
+      captureAvailable={captureAvailable}
       onDraftChange={capture.updateDraft}
       onVisibilityChange={(visibility) => {
         setVisibilityPref((current) => {
@@ -226,6 +272,7 @@ export const WorkspaceComposer = memo(function WorkspaceComposer({
         });
       }}
       onSubmit={handleCaptureSubmit}
+      onSubmitArticle={handleArticleSubmit}
     />
   );
 });

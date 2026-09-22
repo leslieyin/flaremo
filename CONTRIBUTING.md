@@ -7,8 +7,10 @@
 ```bash
 pnpm install
 pnpm migrate:local
-pnpm dev
+pnpm dev:hot   # 前端 HMR + Worker 热重载，浏览器开 http://localhost:5573
 ```
+
+`pnpm dev:hot` 起 Vite 与 `wrangler dev` 两个进程，把 Worker 拥有的路径（API、SSR 分享页、R2 附件、feed）代理给后者，所以浏览器只访问一个源。前端跑在 **5573**（避开其他 Vite 项目的默认 5173）。该模式下还启用了 React Grab——悬停元素即可复制其组件与源码位置给 agent。想要无热重载的单进程模式仍可用 `pnpm dev`（Worker 托管前端构建产物，端口 8787）。
 
 推荐 Node.js 22+ 和仓库声明的 pnpm 版本：
 
@@ -21,8 +23,9 @@ pnpm install
 
 ```bash
 pnpm format:check
-pnpm verify
 ```
+
+默认只跑与改动直接相关的测试（对应的 Vitest 文件或 e2e spec），不要求全量 `pnpm verify`。全量门禁（9 步，含 E2E）只在维护者明确要求时运行。
 
 涉及 Cloudflare 配置、D1、R2 或部署脚本时：
 
@@ -30,7 +33,7 @@ pnpm verify
 pnpm deploy:dry-run
 ```
 
-仓库带一个瘦 CI（`.github/workflows/ci.yml`：format / lint / typecheck / 单元测试，约 3 分钟），作为兜底与外部 PR 的强制门禁。它不跑 E2E、不部署；完整门禁 `pnpm verify`（含 Playwright E2E）仍由 PR 作者在本地跑完并在 PR 里写明结果。仓库中的 `flaremo-update.yml` 只服务自部署用户自己的部署仓库，用于把上游 Release 准备成升级 PR。
+仓库带一个瘦 CI（`.github/workflows/ci.yml`：format / lint / typecheck / 单元测试，约 3 分钟），作为兜底与外部 PR 的强制门禁。它不跑 E2E、不部署；如果维护者要求，PR 作者再在本地跑完整门禁 `pnpm verify`（含 Playwright E2E）并在 PR 里写明结果。仓库中的 `flaremo-update.yml` 只服务自部署用户自己的部署仓库，用于把上游 Release 准备成升级 PR。
 
 如需自动修复格式：
 
@@ -41,6 +44,7 @@ pnpm format
 ## PR 要求
 
 - 描述用户可见变化。
+- 产品与界面改动遵循设计原则「简约不简单，克制不放肆」，细节见 `docs/design-system.md`。
 - 说明是否影响 D1 migration。
 - 说明是否影响 Memos 兼容 API。
 - 说明是否影响 Cloudflare Access、D1、R2 或部署流程。
@@ -78,7 +82,7 @@ Memos 兼容问题请说明客户端、请求路径、请求体和返回体。
 - `main` 永远代表可发布状态。
 - 功能开发使用 `feat/*` 或 `codex/*` 分支。
 - 每个 release 必须有 Git tag、GitHub Release、`CHANGELOG.md` 条目和升级说明。
-- 维护者发布前执行 `pnpm verify`、`pnpm deploy:dry-run` 和 `pnpm backup:drill`。
+- 维护者发布前执行 `pnpm deploy:dry-run` 和 `pnpm backup:drill`；全量 `pnpm verify` 仅在明确要求时（`pnpm release vX.Y.Z --verify`）执行。
 
 ## 社区和支持
 

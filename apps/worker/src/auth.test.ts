@@ -1,18 +1,18 @@
-import { applyFlaremoMigrations, createDb } from "@flaremo/db";
-import { Miniflare } from "miniflare";
+import { createDb } from "@flaremo/db";
+import type { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFlareMoAuth } from "./auth";
 import type { FlareMoEnv } from "./env";
 import app from "./index";
+import {
+  createTestRuntime,
+  TEST_BOOTSTRAP_SECRET,
+} from "./test-support/runtime";
 
 let runtime: Miniflare;
 let env: Env;
 let db: D1Database;
 
-const TEST_AUTH_SECRET =
-  "test-better-auth-secret-that-is-never-used-in-production";
-const TEST_BOOTSTRAP_SECRET =
-  "test-bootstrap-secret-that-is-never-used-in-production";
 const TEST_RECOVERY_SECRET =
   "test-recovery-secret-that-is-never-used-in-production";
 const INITIAL_PASSWORD = "test-password-not-for-production-123";
@@ -20,7 +20,15 @@ const UPDATED_PASSWORD = "updated-password-not-for-production-456";
 
 describe("FlareMo native authentication", () => {
   beforeEach(async () => {
-    ({ runtime, env, db } = await createTestRuntime());
+    ({ runtime, env, db } = await createTestRuntime({
+      name: "flaremo-auth",
+      databaseName: "flaremo-auth-test",
+      attachmentsName: "flaremo-auth-attachments-test",
+      env: {
+        FLAREMO_DEPLOY_REPOSITORY: "",
+        FLAREMO_RECOVERY_SECRET: TEST_RECOVERY_SECRET,
+      },
+    }));
   });
 
   afterEach(async () => {
@@ -622,36 +630,4 @@ function extractCookieHeader(response: Response) {
 
 async function json<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
-}
-
-async function createTestRuntime() {
-  const instance = new Miniflare({
-    script: "export default { fetch() { return new Response('ok') } }",
-    modules: true,
-    compatibilityDate: "2026-07-10",
-    compatibilityFlags: ["nodejs_compat"],
-    d1Databases: { DB: "flaremo-auth-test" },
-    r2Buckets: { ATTACHMENTS: "flaremo-auth-attachments-test" },
-  });
-  const database = await instance.getD1Database("DB");
-  await applyFlaremoMigrations(database);
-
-  return {
-    runtime: instance,
-    db: database,
-    env: {
-      DB: database,
-      ATTACHMENTS: await instance.getR2Bucket("ATTACHMENTS"),
-      ASSETS: {
-        fetch: async () => new Response("asset", { status: 200 }),
-      } as Fetcher,
-      FLAREMO_DEPLOY_REPOSITORY: "",
-      FLAREMO_SINGLE_USER_EMAIL: "owner@example.com",
-      FLAREMO_SINGLE_USER_NAME: "Owner",
-      FLAREMO_PUBLIC_URL: "http://flaremo.test",
-      BETTER_AUTH_SECRET: TEST_AUTH_SECRET,
-      FLAREMO_BOOTSTRAP_SECRET: TEST_BOOTSTRAP_SECRET,
-      FLAREMO_RECOVERY_SECRET: TEST_RECOVERY_SECRET,
-    } as Env,
-  };
 }

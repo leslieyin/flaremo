@@ -49,6 +49,7 @@ La réponse est oui :
 - **Stockage de classe entreprise inclus** : Cloudflare D1 gère les notes et métadonnées, tandis que Cloudflare R2 stocke les pièces jointes avec réplication multi-régions.
 - **Conçu pour l'IA (AI-Native)** : Protocole MCP natif et hub « Agent Memory », permettant à vos agents IA (Claude, Cursor, Codex, ChatGPT) d'écrire et lire votre mémoire à long terme.
 - **Intimité individuelle et collaboration d'équipe** : Espace personnel confidentiel par défaut, transformable instantanément en espace partagé avec rôles et 3 niveaux de visibilité.
+- **Minimal, pas simplifié** : une interface silencieuse, des fonctions complètes — rien qui crie, rien qui manque.
 
 ---
 
@@ -66,29 +67,45 @@ La réponse est oui :
 - **Contrôle humain** : Consultez, confirmez, verrouillez ou corrigez les souvenirs IA sur la page `/memory`.
 - **Écosystème ouvert** : Endpoint Streamable HTTP MCP (`/mcp`) pour manipuler vos notes par programmation.
 
-### 3. Collaboration d'équipe & Permissions à 3 niveaux
+### 3. Projets et tâches
+- **Rassemblez le travail par projet** : Notes et tâches liées regroupées dans des projets, avec tableau kanban (glisser entre les colonnes de statut), priorités, tri manuel et échéances.
+- **Privé par conception, suppression réversible** : Les tâches appartiennent à un seul propriétaire ; la suppression passe par une corbeille, avec restauration possible ou purge automatique.
+
+### 4. Calendrier
+- **Les tâches, source de vérité du planning** : La vue mensuelle `/calendar` remplit les jours passés de vos notes et les jours à venir de vos échéances — glisser-déposer pour replanifier, ajout rapide de tâches datées et liste agenda.
+- **Rappels des retards** : Les tâches en retard déclenchent des notifications intégrées, avec Web Push navigateur en option.
+
+### 5. Collaboration d'équipe & Permissions à 3 niveaux
 - **Gouvernance claire** : Rôles `owner`, `admin`, `member`. Liens d'activation sécurisés sans transit de mots de passe en clair par les administrateurs.
 - **3 niveaux de visibilité** :
   - 🔒 **Privé** : Visible uniquement par l'auteur.
   - 👥 **Équipe** : Lecture partagée avec les membres actifs.
   - 🌐 **Public** : Partage public révocable avec contrôle d'expiration.
 - **Départ sécurisé** : Suppression physique et vérifiée des notes privées lors du retrait d'un membre.
+- **Sièges lecteurs** : Attribuez un siège en lecture seule à durée limitée — lecteurs invités, cohortes de cours, livraisons client. Expiration automatique (fail-closed à la résolution du jeton, sans cron). Gérez-les depuis la page membres, ou provisionnez par e-mail via `PUT /api/app/admin/team/reader` avec un jeton d'accès personnel (voir `docs/team-mode.md`).
 
-### 4. Mode hors-ligne & Expérience PWA
+### 6. Mode hors-ligne & Expérience PWA
 - **PWA installable** : Installez FlareMo sur bureau ou smartphone pour une sensation d'application native.
 - **Synchronisation hors-ligne garantie** : Brouillons enregistrés localement ; les soumissions hors-ligne sont rejouées dans l'ordre dès le retour du réseau.
 - **Dictée vocale en direct** : Page `/capture` avec transcription vocale continue en temps réel (ASR).
 
-### 5. Sécurité Better Auth moderne
+### 7. Sécurité Better Auth moderne
 - **Session sécurisée** : Cookies `HttpOnly`, `SameSite=Lax` pour navigateur ; jetons d'accès personnels révocables (`memos_pat_`) pour scripts et MCP.
 - **Protection stricte de l'Origin** : Validation systématique sur les requêtes modifiant l'état.
 
-### 6. Écosystème et compatibilité Memos
+### 8. Écosystème et compatibilité Memos
 - **API Memos compatible** : Endpoints `/api/v1/*` compatibles et spécification OpenAPI.
 - **Clients tiers compatibles** : Fonctionne directement avec des applications comme Moe Memos.
 - **Import / Export sans perte** : Importez vos archives Memos et flomo en un clic.
 
 ---
+
+### 9. Système d'extensions : les cartes sont des extensions
+- **Cinq cartes incluses** : Blanc, Citation du jour, Ticket, Carte postale, plus un Cachet dessiné au canvas.
+- **Boutique et gestion** : dans les réglages — parcourir les répertoires, installation en un clic (vérification SHA-256), activation/désactivation, ordre, carte par défaut, masquage. Le répertoire officiel : [flaremo.app/plugins](https://flaremo.app/plugins/registry.json).
+- **Importez les vôtres** : un administrateur peut installer un paquet local — il n'existe que sur cette instance et n'est jamais transmis.
+- **Outils d'auteur** : `pnpm plugin:new` génère un squelette, `pnpm plugin:check` valide avec **exactement les règles appliquées à l'installation**, `pnpm plugins:build` empaquette. Les cartes document sont de pures mises en page JSON ; les cartes sandbox exécutent votre HTML/CSS/JS. Voir le [guide des extensions](./docs/plugins.md).
+- **Sûr par défaut** : les cartes s'exécutent dans un bac à sable à origine opaque, **sans aucun accès réseau** ; les paquets communautaires et de marque restent désactivés jusqu'à validation par un administrateur.
 
 ## 📊 La générosité du niveau gratuit Cloudflare
 
@@ -128,10 +145,10 @@ pnpm exec wrangler secret put FLAREMO_BOOTSTRAP_SECRET --config ./wrangler.jsonc
 
 #### 3. Déployer
 ```bash
-pnpm verify
 pnpm deploy:dry-run
 pnpm deploy
 ```
+(La barrière complète `pnpm verify` ne s'exécute que lorsque le mainteneur le demande explicitement.)
 Rendez-vous sur `/setup` sur votre domaine pour initialiser votre compte Propriétaire avec votre secret bootstrap.
 
 ---

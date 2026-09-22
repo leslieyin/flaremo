@@ -25,7 +25,7 @@ FlareMo 是 Cloudflare 原生的个人知识管理系统，提供 Memos 兼容 A
 - Web: React + Vite + Tailwind CSS + shadcn/radix primitives
 - Database: Cloudflare D1 + Drizzle
 - Object storage: Cloudflare R2
-- Auth boundary: Cloudflare Access
+- Auth boundary: Better Auth cookie/PAT；Cloudflare Access 为可选外层防线
 - Public API: Memos-compatible `/api/v1/*`
 - App API: `/api/app/*`
 
@@ -38,4 +38,4 @@ pnpm deploy:dry-run
 pnpm backup:drill
 ```
 
-项目不使用 GitHub Actions 作为 CI。发布前必须在本地完成质量门禁。
+仓库有瘦 CI（.github/workflows/ci.yml：format / lint / typecheck / 单元测试，约 3 分钟）作为 push 与外部 PR 的快速门禁；它不跑 E2E、不构建、不做部署。发布前必须在本地完成完整质量门禁（pnpm verify，含 E2E）。

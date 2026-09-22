@@ -6,6 +6,13 @@ import {
   importMemorySchema,
   memoryDtoSchema,
 } from "./memory";
+import {
+  projectStatusSchema,
+  taskActivityActionSchema,
+  taskActorTypeSchema,
+  taskPrioritySchema,
+  taskStatusSchema,
+} from "./projects";
 import { memoSearchScopes } from "./search-query";
 
 export const memoVisibilitySchema = z.enum(["private", "protected", "public"]);
@@ -45,6 +52,11 @@ export const memoPayloadSchema = z
     // domain layer only promotes a non-empty value up to 128 characters to
     // the internal idempotency key, without rejecting existing clients.
     client_id: z.string().optional(),
+    // Voice capture (rollout §4.2): playback length of the session and the
+    // attachment id that carries the recording. Optional so payloads from
+    // before P3 — and from other clients — keep parsing unchanged.
+    durationSeconds: z.number().optional(),
+    audioAttachmentId: z.string().optional(),
   })
   .passthrough();
 
@@ -152,6 +164,9 @@ export const memoDtoSchema = z.object({
   display_time: z.string(),
   creator: z.string(),
   creator_name: z.string().optional(),
+  // Submission client ("web", "voice", …); absent on legacy rows. The
+  // timeline uses it for the voice-capture face (rollout §4.3).
+  source: z.string().optional(),
   // Server-computed edit/manage permission for the requesting user, so
   // clients never re-derive the team permission rules locally.
   can_manage: z.boolean().optional(),
@@ -313,7 +328,9 @@ const importShareSchema = shareDtoSchema.partial({
 });
 
 export const importBundleSchema = z.object({
-  version: z.union([z.literal(1), z.literal(2), z.literal(3)]).default(1),
+  version: z
+    .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+    .default(1),
   memos: z
     .array(
       memoDtoSchema
@@ -352,6 +369,56 @@ export const importBundleSchema = z.object({
     .array(exportMemoryResourceLinkSchema)
     .max(100_000)
     .default([]),
+  // v4: projects/tasks/task_activity joined the self-service bundle. Rows keep
+  // their namespaced ids; soft-deleted (recycle-bin) rows travel with
+  // `deleted_at` so nothing is silently dropped from a backup.
+  projects: z
+    .array(
+      z.object({
+        name: z.string(),
+        title: z.string(),
+        description: z.string().nullable(),
+        status: projectStatusSchema,
+        deleted_at: z.string().nullable(),
+        created_at: z.string(),
+        updated_at: z.string(),
+      }),
+    )
+    .max(10_000)
+    .default([]),
+  tasks: z
+    .array(
+      z.object({
+        name: z.string(),
+        project_id: z.string().nullable(),
+        source_memo_id: z.string().nullable(),
+        title: z.string(),
+        notes: z.string().nullable(),
+        status: taskStatusSchema,
+        priority: taskPrioritySchema,
+        due_at: z.string().nullable(),
+        sort_order: z.number().int(),
+        completed_at: z.string().nullable(),
+        deleted_at: z.string().nullable(),
+        created_at: z.string(),
+        updated_at: z.string(),
+      }),
+    )
+    .max(50_000)
+    .default([]),
+  task_activity: z
+    .array(
+      z.object({
+        task_id: z.string().nullable(),
+        actor_type: taskActorTypeSchema,
+        actor_name: z.string().nullable(),
+        action: taskActivityActionSchema,
+        changes: z.record(z.string(), z.unknown()),
+        created_at: z.string(),
+      }),
+    )
+    .max(100_000)
+    .default([]),
   exported_at: z.string().optional(),
 });
 
@@ -367,6 +434,9 @@ export const importResultSchema = z.object({
   imported_relations: z.number().int().nonnegative(),
   imported_shares: z.number().int().nonnegative(),
   imported_memories: z.number().int().nonnegative().default(0),
+  imported_projects: z.number().int().nonnegative().default(0),
+  imported_tasks: z.number().int().nonnegative().default(0),
+  imported_task_activity: z.number().int().nonnegative().default(0),
 });
 
 export const dataTaskStatusSchema = z.enum([

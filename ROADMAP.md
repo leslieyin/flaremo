@@ -4,6 +4,7 @@
 
 ## 产品主线
 
+- 设计原则：简约不简单，克制不放肆——不为了炫技加装饰，也不为了省事砍掉该有的能力（视觉与交互细节见 `docs/design-system.md`）。
 - 快速记录：打开即写、低干扰输入、可靠草稿。
 - 安静时间线：搜索、标签、归档、回收站、活动热力图。
 - Memos 兼容：核心 `/api/v1` 子集稳定，当前包含有限 social、UserService webhook/notification 资源生命周期，以及四类 memo 事件的有界异步 webhook outbox 投递/重试；完整 Memos Server parity、完整上游 webhook 事件语义和完整多用户 ACL 仍未完成。导入导出保持可靠。
@@ -26,7 +27,7 @@
 
 - 扩大真实 Memos 客户端兼容矩阵，并补每个已验证客户端的配置示例。
 - Agent Memory 后续：自动固化（会话/工作完成后 LLM 提炼）。
-- 回顾触达渠道：✅ 站内通知已落地（cron 幂等写入 `daily_review` 收件箱，铃铛直达 `/review/daily`）；Web Push 仍为后续；AI 洞察类派生能力（Workers AI 或外部模型）仍为后续。
+- 回顾触达渠道：✅ 站内通知已落地（cron 幂等写入 `daily_review` 收件箱，铃铛直达 `/review/daily`）；✅ Web Push 已落地（VAPID 订阅 + 回顾推送，见 docs/deploy.md 配置小节）；AI 洞察类派生能力（Workers AI 或外部模型）仍为后续。
 - 增加附件生命周期观测面：清理计数、缺失对象报告和可控重试。
 - 扩大浏览器 E2E：Markdown、历史恢复、反向链接、分享撤销和附件预览。
 

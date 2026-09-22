@@ -208,13 +208,17 @@ test("pasting an image into the composer inserts a reference and binds it on sen
     await pastePng(page, "#flaremo-composer-input", "pasted-shot.png"),
   ).toBe(true);
 
-  // The upload completes before the reference appears in the draft.
-  await expect(composer).toHaveValue(/\/file\/attachments\//, {
+  // The upload completes before the reference appears in the draft. The rich
+  // editor renders the reference as an inline image node, not raw markdown
+  // text, so assert on the rendered <img> instead of an input value.
+  await expect(composer.locator("img[src*='/file/attachments/']")).toBeVisible({
     timeout: 15_000,
   });
   await composer.pressSequentially(` Marker ${marker}`);
-  await page.getByRole("button", { name: /^(发送|Send)/ }).click();
-  await expect(composer).toHaveValue("", { timeout: 15_000 });
+  // Anchored match: the composer row also has a "Send target" dropdown
+  // trigger next to the submit button (spaces feature).
+  await page.getByRole("button", { name: /^(发送|Send)$/i }).click();
+  await expect(composer).toHaveText("", { timeout: 15_000 });
 
   const listResponse = await request.get("/api/app/memos?page_size=50");
   const list = (await listResponse.json()) as {
@@ -254,12 +258,14 @@ test("pasting into the timeline editor uploads bound and saves inline", async ({
   await card.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /edit|编辑/i }).click();
 
-  const editor = card.locator("textarea");
+  // The card editor is the same rich editor; its id distinguishes it from
+  // the page composer.
+  const editor = card.locator("#flaremo-card-editor-input");
   await editor.click();
-  expect(await pastePng(page, "article textarea", "edited-shot.png")).toBe(
-    true,
-  );
-  await expect(editor).toHaveValue(/\/file\/attachments\//, {
+  expect(
+    await pastePng(page, "#flaremo-card-editor-input", "edited-shot.png"),
+  ).toBe(true);
+  await expect(editor.locator("img[src*='/file/attachments/']")).toBeVisible({
     timeout: 15_000,
   });
 

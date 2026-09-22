@@ -8,7 +8,7 @@ The browser renders no settings panel until a fresh, user-scoped `/api/app/me` r
 
 Environment variables win when a complete credential set resolves from `FLAREMO_ASR_*`; the database copy (saved from the settings UI) applies otherwise. An incomplete environment set does not take over; the saved configuration remains effective. This keeps existing deployments that already set provider variables working without any migration, and the panel states explicitly when the environment layer is in charge.
 
-Deployment-level environment setup remains documented in [voice-capture.md](./voice-capture.md). The UI path needs no console access: choose Tencent Cloud or DashScope and enter all required credentials on the first save or when changing provider. Blank credential fields preserve credentials previously saved through this UI for the same provider. Environment secrets are not automatically imported. Save does not contact the cloud provider. The optional connection test uses the effective settings and may incur provider charges; it does not send audio or verify transcription quality.
+Deployment-level environment setup remains documented in [voice-capture.md](./voice-capture.md). The UI path needs no console access: choose Tencent Cloud, DashScope, or Volcano Engine (Doubao) and enter all required credentials on the first save or when changing provider. Blank credential fields preserve credentials previously saved through this UI for the same provider. Environment secrets are not automatically imported. Save does not contact the cloud provider. The optional connection test uses the effective settings and may incur provider charges; it does not send audio or verify transcription quality.
 
 ## Optional encryption at rest
 

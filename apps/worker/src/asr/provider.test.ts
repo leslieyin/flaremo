@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getConfiguredAsr } from "./provider";
+import { getConfiguredAsr, getConfiguredBatchAsr } from "./provider";
 
 const tencent = {
   FLAREMO_ASR_PROVIDER: "tencent",
@@ -104,5 +104,44 @@ describe("Capture provider configuration", () => {
         FLAREMO_ASR_TENCENT_HOTWORD_LIST: "语音记录|100",
       })?.id,
     ).toBe("tencent");
+  });
+});
+
+describe("Batch (MiniMax) provider configuration", () => {
+  const minimaxEnv = {
+    FLAREMO_ASR_PROVIDER: "minimax",
+    FLAREMO_ASR_MINIMAX_API_KEY: "test-minimax-key",
+  };
+  it("resolves the batch provider only under an explicit minimax selection", () => {
+    expect(getConfiguredBatchAsr(minimaxEnv)?.id).toBe("minimax");
+    expect(
+      getConfiguredBatchAsr({ ...minimaxEnv, FLAREMO_ASR_PROVIDER: undefined }),
+    ).toBeNull();
+    expect(
+      getConfiguredBatchAsr({ FLAREMO_ASR_MINIMAX_API_KEY: "test-key" }),
+    ).toBeNull();
+    expect(
+      getConfiguredBatchAsr({
+        ...minimaxEnv,
+        FLAREMO_ASR_MINIMAX_API_KEY: " ",
+      }),
+    ).toBeNull();
+  });
+  it("requires an API key and rejects an unusable base URL without throwing", () => {
+    expect(
+      getConfiguredBatchAsr({
+        ...minimaxEnv,
+        FLAREMO_ASR_MINIMAX_BASE_URL: "https://api.minimax.io/",
+      }),
+    ).not.toBeNull();
+    expect(
+      getConfiguredBatchAsr({
+        ...minimaxEnv,
+        FLAREMO_ASR_MINIMAX_BASE_URL: "not a url",
+      }),
+    ).toBeNull();
+  });
+  it("keeps MiniMax out of the streaming provider factory", () => {
+    expect(getConfiguredAsr(minimaxEnv)).toBeNull();
   });
 });

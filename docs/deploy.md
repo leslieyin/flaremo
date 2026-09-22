@@ -14,11 +14,15 @@ FlareMo 部署到 Cloudflare Workers。Worker 同时承载前端静态资源和 
 
 手动部署仍是受支持的完整路径，按钮流程更适合快速试用。
 
+## GitHub Action 手动部署（自托管 fork）
+
+自己的 fork 或部署仓库可以使用 `.github/workflows/deploy-cloudflare.yml`：在 Actions 里手动 `Run workflow`，创建缺失的 D1 / R2 / Queue / Vectorize，发布 Worker，并把仓库 Secrets 里的 `BETTER_AUTH_SECRET`、`FLAREMO_BOOTSTRAP_SECRET` 同步到 Cloudflare。push 不会自动发布；上游 `realchendahuang/FlareMo` 不会跑这个 job。
+
+完整步骤见 [用 GitHub Action 部署](./github-action-deploy.md)。
+
 ## 手动部署
 
 仓库不跟踪 `wrangler.jsonc`（手动部署者的配置以本机文件形式存在），也没有 CI 或自动部署。先创建资源、复制配置模板并填入自己的值，再执行部署命令。
-
-## 手动部署
 
 安装依赖：
 
@@ -26,7 +30,16 @@ FlareMo 部署到 Cloudflare Workers。Worker 同时承载前端静态资源和 
 pnpm install
 ```
 
-复制配置模板并创建 D1 和 R2：
+复制配置模板，把 `FLAREMO_PUBLIC_URL` 设置为你的公开访问 origin，再创建 D1 和 R2：
+
+```bash
+cp wrangler.jsonc.example wrangler.jsonc
+pnpm provision:remote
+```
+
+`pnpm provision:remote` 会创建缺失的 D1、R2、Queue 和 Vectorize 资源，并把 D1 的 `database_id` 自动写回 `wrangler.jsonc`；幂等，已存在的资源会跳过。
+
+也可以手动执行等价命令：
 
 ```bash
 cp wrangler.jsonc.example wrangler.jsonc
@@ -34,7 +47,7 @@ pnpm exec wrangler d1 create flaremo
 pnpm exec wrangler r2 bucket create flaremo-attachments
 ```
 
-`wrangler.jsonc.example` 里的账号相关值需要替换：把 D1 输出的 `database_id` 写入 `wrangler.jsonc`，并把 `FLAREMO_PUBLIC_URL` 设置为你的公开访问 origin；bucket、queue 和 Vectorize index 名称可以保留为建议默认值。
+手动创建时需要把 D1 输出的 `database_id` 写入 `wrangler.jsonc`；bucket、queue 和 Vectorize index 名称可以保留为建议默认值。
 
 部署；这个命令会先构建前端、应用远端 migrations，再发布 Worker：
 
@@ -45,10 +58,11 @@ pnpm deploy
 部署前建议跑：
 
 ```bash
-pnpm verify
 pnpm deploy:dry-run
 pnpm deploy:preflight
 ```
+
+（全量 `pnpm verify` 仅在维护者明确要求时运行。）
 
 `pnpm deploy:preflight` 会确认本地发布环境提供了至少 32 个字符的
 `BETTER_AUTH_SECRET`，并拒绝常见占位值。在 CI 构建环境（`CI=true`，如
@@ -188,6 +202,20 @@ curl "$FLAREMO_URL/api/v1/memos" \
 如果 Cloudflare Access 仍然启用，上面的请求还要附加 Access Service Token headers。Access Service Token 单独发送时，Worker 仍会返回应用层 `401`，这是预期行为。
 
 旧的 `/api/v1/mcp` 是 FlareMo 既有 JSON-RPC MCP 子集，同样需要 cookie session 或 PAT；它继续保留给旧客户端。current Memos 风格的无状态 JSON Streamable HTTP MCP 位于根 `/mcp`，支持 `initialize`、`notifications/initialized`、`tools/list` 和 `tools/call`，但不承诺 SSE、有状态 session 或完整 method surface。
+
+### Cloudflare 资源用量面板（可选）
+
+Owner 用量面板除了应用内自测的向量用量，还可以展示 Cloudflare 官方口径的本实例资源用量（Workers 请求数、D1 存储与读/写行数、R2 存储与 Class A / B 操作）。数据来自 GraphQL Analytics API（`api.cloudflare.com/client/v4/graphql`），按本部署自己的 Worker 名、D1 database id、R2 bucket 过滤，共享账号下其他项目的用量不会被计入。
+
+启用只需一次性运行：
+
+```bash
+pnpm setup:usage
+```
+
+脚本会检测现有 secret、给出创建 API token 的指引（自定义 token 只需要 **Account → Account Analytics → Read** 一条权限）、写入 `FLAREMO_CF_ANALYTICS_TOKEN`、`FLAREMO_CF_ACCOUNT_ID`、`FLAREMO_CF_WORKER_NAME`、`FLAREMO_CF_D1_ID`、`FLAREMO_CF_R2_BUCKET` 五个 Worker secret，并当场验证 token 能读到 analytics。secret 配置一次即随实例永久生效，之后的部署无需重复任何步骤；`--reset` 可只重新录入 token。
+
+Token 权限是账号级的（Cloudflare 不支持更细的 analytics 读取范围），但面板查询始终按资源 id 过滤。不配置 token 时该区块整体隐藏，应用其余功能不受影响。R2 存储指标约有 24 小时延迟；「本月」按 UTC 自然月对齐 Cloudflare 计费周期；最终计费以 Cloudflare Dashboard 为准。
 
 ## Cloudflare Access（可选外层防线）
 
@@ -360,7 +388,7 @@ http://localhost:8787
 
 ## 升级
 
-应用内左下角的“系统更新”会显示当前版本和最新稳定版本。GitHub 部署可以按 [更新指南](./update.md) 运行更新 workflow、审查升级 PR，并在合并后交给 Workers Builds 自动部署。
+应用内左下角的“系统更新”会显示当前版本和最新稳定版本。使用 Workers Builds 的 GitHub 部署可以按 [更新指南](./update.md) 运行更新 workflow、审查升级 PR，并在合并后自动发布。若使用 [GitHub Action 手动部署](./github-action-deploy.md)，合并升级 PR 之后还要再运行一次 `Deploy to Cloudflare`。
 
 手工升级前先看 `CHANGELOG.md` 和 release notes，然后执行：
 

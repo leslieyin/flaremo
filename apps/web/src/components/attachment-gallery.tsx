@@ -1,14 +1,21 @@
 import { CircleAlertIcon, DownloadIcon, FileIcon } from "lucide-react";
 import { useState } from "react";
 import type { Attachment } from "@/api";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { useI18n } from "@/i18n";
+import { attachmentImageDimensions } from "@/lib/attachment-refs";
 import { formatBytes } from "@/lib/utils";
 
 function GalleryItem({ attachment }: { attachment: Attachment }) {
   const { t } = useI18n();
   const [failed, setFailed] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const isImage = attachment.content_type?.startsWith("image/");
   const isAudio = attachment.content_type?.startsWith("audio/");
+  // Uploaded images carry intrinsic dimensions in their payload; with them
+  // the browser reserves the exact box before the bytes arrive, so feed
+  // content below never gets pushed down mid-scroll.
+  const dimensions = attachmentImageDimensions(attachment);
   return (
     <div
       className="overflow-hidden rounded-xl border bg-card transition-shadow duration-200 hover:shadow-sm"
@@ -21,15 +28,38 @@ function GalleryItem({ attachment }: { attachment: Attachment }) {
             {t("attachment.unavailable")}
           </p>
         ) : (
-          <a href={attachment.download_url}>
-            <img
-              alt={attachment.filename}
-              className="max-h-[32rem] w-full bg-muted object-contain motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out-expo motion-safe:hover:scale-[1.015]"
-              loading="lazy"
-              onError={() => setFailed(true)}
+          <>
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              className="block w-full cursor-zoom-in text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+            >
+              <img
+                alt={attachment.filename}
+                className="h-auto max-h-[32rem] w-full bg-muted object-contain motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out-expo motion-safe:hover:scale-[1.015]"
+                height={dimensions?.height}
+                loading="lazy"
+                onError={() => setFailed(true)}
+                src={attachment.preview_url}
+                style={
+                  dimensions
+                    ? {
+                        aspectRatio: `${dimensions.width} / ${dimensions.height}`,
+                      }
+                    : undefined
+                }
+                width={dimensions?.width}
+              />
+            </button>
+            <ImageLightbox
+              open={lightboxOpen}
+              onOpenChange={setLightboxOpen}
               src={attachment.preview_url}
+              alt={attachment.filename}
+              downloadUrl={attachment.download_url}
+              filename={attachment.filename}
             />
-          </a>
+          </>
         ))}
       {isAudio && (
         // biome-ignore lint/a11y/useMediaCaption: User-uploaded audio does not include a caption track.

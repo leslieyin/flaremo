@@ -30,10 +30,6 @@ export type QuotaScope = {
  * per-user — the reads below therefore sum across users.
  */
 
-export function isWithinLimit(used: number, limit: PlanLimitValue): boolean {
-  return limit === null || used < limit;
-}
-
 /**
  * Rough input-size estimate for providers that do not report token counts
  * (Workers AI embeddings return vectors only). Four characters per token is

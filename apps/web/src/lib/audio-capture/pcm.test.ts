@@ -54,6 +54,9 @@ describe("streaming audio PCM", () => {
       expect(rms(12000)).toBeLessThan(0.01);
     },
   );
+  // 18000 push/flush cycles are CPU-bound work, not wall-clock I/O; a busy
+  // laptop needs well over the 5s default, and the value under test is sample
+  // accounting, not speed.
   it("streams 30 minutes into fixed 100 ms frames without sample drift or audio accumulation", () => {
     let bytes = 0;
     let frames = 0;
@@ -67,5 +70,5 @@ describe("streaming audio PCM", () => {
     encoder.flush();
     expect(frames).toBe(18000);
     expect(bytes).toBe(1800 * 16000 * 2);
-  });
+  }, 60_000);
 });

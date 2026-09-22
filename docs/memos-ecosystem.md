@@ -42,16 +42,16 @@ Access Service Token 不会自动变成 FlareMo 用户 session；不能发送应
 
 | 工具或路径 | 类型 | FlareMo 状态 | 仓库测试证据 | 外部客户端结论 |
 | --- | --- | --- | --- | --- |
-| current REST script / curl | 通用 HTTP 脚本 | 已实现 | `memos-compatibility.test.ts`、`memos-social.test.ts`、`auth.test.ts` 覆盖 current DTO、memo/attachment/share、social、PAT、native auth、Origin 和标准错误；`memos-auth-golden.test.ts` 固定验证 FlareMo 自己的 JWT/refresh bytes。 | 已测试的是 FlareMo contract；没有独立客户端或线上实例 smoke，也不证明上游 token parity。 |
+| current REST script / curl | 通用 HTTP 脚本 | 已实现 | `apps/worker/src/compatibility/*.test.ts`、`memos-social.test.ts`、`auth.test.ts` 覆盖 current DTO、memo/attachment/share、social、PAT、native auth、Origin 和标准错误；`memos-auth-golden.test.ts` 固定验证 FlareMo 自己的 JWT/refresh bytes。 | 已测试的是 FlareMo contract；没有独立客户端或线上实例 smoke，也不证明上游 token parity。 |
 | legacy REST script / curl | 兼容迁移脚本 | 已实现 | current/legacy OpenAPI 和 wire negotiation 有测试。 | 未对历史第三方脚本逐一重放。 |
-| generic Connect JSON client | HTTP unary client | 已实现子集 | `memos-transport.test.ts` 覆盖 Memo/Shortcut 及部分 Auth、Attachment/User/Instance/IdentityProvider JSON RPC，包括 UserService webhook/notification 子集。 | 官方 generated client 的 binary smoke 已单独记录；generic JSON client 仍未逐一做第三方客户端 smoke。 |
-| generic protobuf / gRPC-style client | HTTP binary client | 已实现子集 | `memos-protobuf.test.ts`、`memos-transport.test.ts` 覆盖 media type、部分 upstream field number、unary framing、gRPC-Web/text、data/trailer frame 和 error status。 | response 多数只做 frame/字节断言；generated schema roundtrip 只由下方官方 client smoke 覆盖有限 MemoService 方法。 |
-| FlareMo current MCP endpoint | MCP client | 已实现子集 | `mcp-streamable.test.ts`、`memos-compatibility.test.ts` 覆盖 `initialize`、`notifications/initialized`、`tools/list`、`tools/call` 和工具错误 envelope。 | 根 `/mcp` 是无状态 JSON 子集；未测所有第三方 MCP client。 |
+| generic Connect JSON client | HTTP unary client | 已实现子集 | `apps/worker/src/transport/*.test.ts` 覆盖 Memo/Shortcut 及部分 Auth、Attachment/User/Instance/IdentityProvider JSON RPC，包括 UserService webhook/notification 子集。 | 官方 generated client 的 binary smoke 已单独记录；generic JSON client 仍未逐一做第三方客户端 smoke。 |
+| generic protobuf / gRPC-style client | HTTP binary client | 已实现子集 | `memos-protobuf.test.ts`、`apps/worker/src/transport/*.test.ts` 覆盖 media type、部分 upstream field number、unary framing、gRPC-Web/text、data/trailer frame 和 error status。 | response 多数只做 frame/字节断言；generated schema roundtrip 只由下方官方 client smoke 覆盖有限 MemoService 方法。 |
+| FlareMo current MCP endpoint | MCP client | 已实现子集 | `mcp-streamable.test.ts`、`apps/worker/src/compatibility/*.test.ts` 覆盖 `initialize`、`notifications/initialized`、`tools/list`、`tools/call` 和工具错误 envelope。 | 根 `/mcp` 是无状态 JSON 子集；未测所有第三方 MCP client。 |
 | FlareMo legacy MCP endpoint | 旧 MCP JSON-RPC | 已实现子集 | `mcp-streamable.test.ts` 和 `auth.test.ts` 覆盖旧工具名/PAT 边界。 | 不能从旧 endpoint 推断完整 Memos MCP 兼容。 |
-| FlareMo SSE consumer | EventSource / SSE client | 已实现子集 | `memos-transport.test.ts` 覆盖 authenticated stream、connected/heartbeat、`Last-Event-ID` replay、visibility 和 cancellation。 | D1 polling 实现，未做第三方 EventSource smoke。 |
+| FlareMo SSE consumer | EventSource / SSE client | 已实现子集 | `apps/worker/src/transport/*.test.ts` 覆盖 authenticated stream、connected/heartbeat、`Last-Event-ID` replay、visibility 和 cancellation。 | D1 polling 实现，未做第三方 EventSource smoke。 |
 | FlareMo Telegram Worker example | Telegram webhook adapter | 已实现示例 | `apps/telegram-bot/src/index.test.ts` 覆盖 PAT-only、可选 Access headers、secret 校验和 fail-closed。 | 不是真实 Telegram API 或生产 FlareMo smoke。 |
-| public share reader | 浏览器 / curl | 已实现 | `memos-compatibility.test.ts`、`api.test.ts` 覆盖 share token 隔离、撤销、过期/状态和附件读取。 | 仍需在实际部署域名上验证 Access bypass 规则；不绕过 FlareMo share 校验。 |
-| Memos Web attachment file URL bridge | Memos Web `/file/attachments/{id}/{filename}` | 已实现子集 | `api.test.ts` 覆盖私有 cookie、Range/ETag、错误 filename 不改变对象定位，以及带 `share_token` 的公共读取和跨 memo 隔离。 | 只证明 FlareMo 的文件 URL contract；thumbnail 原图 fallback、motion media、官方 Web 全量行为和生产 Access path policy 仍未实测。 |
+| public share reader | 浏览器 / curl | 已实现 | `apps/worker/src/compatibility/*.test.ts`、`apps/worker/src/api/*.test.ts` 覆盖 share token 隔离、撤销、过期/状态和附件读取。 | 仍需在实际部署域名上验证 Access bypass 规则；不绕过 FlareMo share 校验。 |
+| Memos Web attachment file URL bridge | Memos Web `/file/attachments/{id}/{filename}` | 已实现子集 | `apps/worker/src/api/*.test.ts` 覆盖私有 cookie、Range/ETag、错误 filename 不改变对象定位，以及带 `share_token` 的公共读取和跨 memo 隔离。 | 只证明 FlareMo 的文件 URL contract；thumbnail 原图 fallback、motion media、官方 Web 全量行为和生产 Access path policy 仍未实测。 |
 | 官方 Memos generated Connect client | `protoc-gen-es` + `@connectrpc/connect-web` binary unary client | 已实测子集 | `apps/worker/src/memos-connect-client.test.ts` 使用官方 generated `MemoService` 和 `UserService`：Connect binary 覆盖 memo 与 webhook/notification 方法，gRPC-Web binary 覆盖 memo 与 UserService 方法，并由 generated decoder 解码；另有下方记录的本地方法集 smoke 和生产域名匿名 `ListMemos` smoke。 | 生产只覆盖一个匿名 unary 方法；不是官方 Web 全量行为或完整 Memos Server parity。 |
 
 ## 官方 Memos generated Connect client：local 与 production anonymous smoke
@@ -63,7 +63,7 @@ Access Service Token 不会自动变成 FlareMo 用户 session；不能发送应
 - `MemoService`：`CreateMemo`、`ListMemos`、`GetMemo`，分别通过 Connect binary 和 gRPC-Web binary 的有限子集。
 - `UserService`：webhook create/list/signing-secret，以及 notification list/update 的 Connect/gRPC-Web binary 子集。
 
-`memos-transport.test.ts` 还覆盖了更多 service 的 Worker Connect JSON/protobuf framing 和业务 contract，但这不能写成官方 generated client 已逐一解码。production 证据只覆盖匿名 `MemoService/ListMemos`。这不是官方 Memos Web 全量 smoke：官方 Web 的 cookie credentials、refresh/retry、未覆盖的 Auth/Attachment/Shortcut/Instance/IdentityProvider/AI generated client 方法、streaming/metadata 等仍需单独验证；第三方客户端仍保持未测。
+`apps/worker/src/transport/*.test.ts` 还覆盖了更多 service 的 Worker Connect JSON/protobuf framing 和业务 contract，但这不能写成官方 generated client 已逐一解码。production 证据只覆盖匿名 `MemoService/ListMemos`。这不是官方 Memos Web 全量 smoke：官方 Web 的 cookie credentials、refresh/retry、未覆盖的 Auth/Attachment/Shortcut/Instance/IdentityProvider/AI generated client 方法、streaming/metadata 等仍需单独验证；第三方客户端仍保持未测。
 
 ## 官方 Memos Web：仍仅静态审计
 

@@ -7,9 +7,9 @@ import type {
 } from "@flaremo/contracts";
 import type { FlareMoDb, TaskActivityRow, TaskRow, UserRow } from "@flaremo/db";
 import { taskActivity, tasks } from "@flaremo/db";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lt, or } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "./errors";
-import { createResourceId } from "./ids";
+import { createResourceId, parseResourceName } from "./ids";
 import { requireProject } from "./projects";
 
 /**
@@ -20,6 +20,20 @@ import { requireProject } from "./projects";
  */
 export type TaskActor = { type: "user" } | { type: "agent"; name?: string };
 
+export type ListTasksOptions = {
+  projectId?: string | null;
+  status?: TaskRow["status"];
+  priority?: TaskRow["priority"];
+  /** Inclusive lower bound on `due_at` (YYYY-MM-DD). */
+  dueFrom?: string | null;
+  /** Inclusive upper bound on `due_at` (YYYY-MM-DD). */
+  dueTo?: string | null;
+  /** Recycle bin: include soft-deleted tasks. */
+  includeDeleted?: boolean;
+  pageSize?: number;
+  pageToken?: string;
+};
+
 // ---------------------------------------------------------------------------
 // DTO mapping
 // ---------------------------------------------------------------------------
@@ -28,6 +42,7 @@ export function taskToDto(row: TaskRow): TaskDto {
   return {
     id: row.id,
     project_id: row.projectId,
+    source_memo_id: row.sourceMemoId,
     title: row.title,
     notes: row.notes,
     status: row.status,
@@ -35,6 +50,7 @@ export function taskToDto(row: TaskRow): TaskDto {
     due_at: row.dueAt,
     sort_order: row.sortOrder,
     completed_at: row.completedAt,
+    deleted_at: row.deletedAt,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   };
@@ -53,18 +69,41 @@ export function taskActivityToDto(row: TaskActivityRow): TaskActivityDto {
 }
 
 // ---------------------------------------------------------------------------
+// Day math (mirrors apps/web/src/lib/calendar-date.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * The day after a `YYYY-MM-DD` key. Used to turn "up to and including day D"
+ * into an exclusive upper bound, so tasks whose stored value carries a time
+ * component (legacy rows; writes are date-only today) still land on day D.
+ */
+export function nextDayKey(key: string): string {
+  const date = new Date(`${key}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+// ---------------------------------------------------------------------------
 // Ownership / permission
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve one of the caller's tasks. The default read excludes recycle-bin
+ * rows (soft-deleted tasks 404 to every live read); the restore path opts back
+ * in with `includeDeleted`.
+ */
 async function requireTask(
   db: FlareMoDb,
   user: UserRow,
   id: string,
+  options: { includeDeleted?: boolean } = {},
 ): Promise<TaskRow> {
+  const filters = [eq(tasks.id, id), eq(tasks.userId, user.id)];
+  if (!options.includeDeleted) filters.push(isNull(tasks.deletedAt));
   const row = await db
     .select()
     .from(tasks)
-    .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)))
+    .where(and(...filters))
     .get();
   if (!row) throw new NotFoundError(`Task not found: ${id}`);
   return row;
@@ -103,14 +142,19 @@ export async function createTask(
   actor: TaskActor,
   input: CreateTaskInput,
 ): Promise<TaskDto> {
-  const projectId = parseTaskProjectId(input.project_id);
-  await requireProject(db, user, projectId);
-
   const title = input.title.trim();
   if (!title) throw new ValidationError("Task title cannot be empty.");
 
+  // An omitted or empty project id creates an unassigned task; a provided id
+  // must still be one of the caller's projects.
+  const projectId = input.project_id
+    ? parseTaskProjectId(input.project_id)
+    : null;
+  if (projectId) await requireProject(db, user, projectId);
+
   const status = input.status ?? "todo";
   const priority = input.priority ?? "none";
+  const sourceMemoId = normalizeSourceMemoId(input.source_memo_id);
 
   const now = new Date().toISOString();
   const row = await db
@@ -119,6 +163,7 @@ export async function createTask(
       id: createResourceId("tasks"),
       userId: user.id,
       projectId,
+      sourceMemoId,
       title,
       notes: input.notes?.trim() || null,
       status,
@@ -149,23 +194,96 @@ export async function getTask(
   return taskToDto(await requireTask(db, user, id));
 }
 
+const TASKS_PAGE_MAX = 100;
+
+/**
+ * List tasks with recycle-bin exclusion, project/status/priority/due-range
+ * filters and cursor pagination. The cursor mirrors the memos list contract
+ * (`page_size`/`page_token`, token = base64 sort key + id) so clients consume
+ * both endpoints the same way.
+ */
 export async function listTasks(
   db: FlareMoDb,
   user: UserRow,
-  input: { projectId?: string; status?: TaskRow["status"] } = {},
-): Promise<TaskDto[]> {
+  input: ListTasksOptions = {},
+): Promise<{ tasks: TaskDto[]; nextPageToken?: string }> {
+  const pageSize = Math.min(
+    Math.max(input.pageSize ?? TASKS_PAGE_MAX, 1),
+    TASKS_PAGE_MAX,
+  );
   const filters = [eq(tasks.userId, user.id)];
+  if (!input.includeDeleted) filters.push(isNull(tasks.deletedAt));
   if (input.projectId) {
     filters.push(eq(tasks.projectId, parseTaskProjectId(input.projectId)));
   }
   if (input.status) filters.push(eq(tasks.status, input.status));
+  if (input.priority) filters.push(eq(tasks.priority, input.priority));
+  if (input.dueFrom) filters.push(gte(tasks.dueAt, input.dueFrom));
+  if (input.dueTo) filters.push(lt(tasks.dueAt, nextDayKey(input.dueTo)));
+  const cursor = input.pageToken
+    ? decodeTaskPageToken(input.pageToken)
+    : undefined;
+  if (cursor) {
+    // Resume strictly after the cursor row on the (sortOrder, createdAt, id)
+    // tie-break chain, matching the ORDER BY.
+    const cursorFilter = or(
+      gt(tasks.sortOrder, cursor.sortOrder),
+      and(
+        eq(tasks.sortOrder, cursor.sortOrder),
+        or(
+          gt(tasks.createdAt, cursor.createdAt),
+          and(eq(tasks.createdAt, cursor.createdAt), gt(tasks.id, cursor.id)),
+        ),
+      ),
+    );
+    if (cursorFilter) filters.push(cursorFilter);
+  }
 
   const rows = await db
     .select()
     .from(tasks)
     .where(and(...filters))
-    .orderBy(asc(tasks.sortOrder), asc(tasks.createdAt), asc(tasks.id));
-  return rows.map(taskToDto);
+    .orderBy(asc(tasks.sortOrder), asc(tasks.createdAt), asc(tasks.id))
+    .limit(pageSize + 1);
+
+  const page = rows.slice(0, pageSize);
+  const next =
+    rows.length > pageSize ? (page.at(-1) as TaskRow | undefined) : undefined;
+  return {
+    tasks: page.map(taskToDto),
+    nextPageToken: next
+      ? encodeTaskPageToken({
+          sortOrder: next.sortOrder,
+          createdAt: next.createdAt,
+          id: next.id,
+        })
+      : undefined,
+  };
+}
+
+// A reorder is a project-scoped event and is the only writer that shifts many
+// `sort_order` values at once, so the cursor carries the full tie-break chain
+// (sortOrder, createdAt, id) matching the ORDER BY above.
+type TaskCursor = { sortOrder: number; createdAt: string; id: string };
+
+function encodeTaskPageToken(value: TaskCursor) {
+  return btoa(JSON.stringify(value));
+}
+
+function decodeTaskPageToken(token: string): TaskCursor {
+  try {
+    const parsed = JSON.parse(atob(token)) as Partial<TaskCursor>;
+    if (
+      typeof parsed.sortOrder === "number" &&
+      typeof parsed.createdAt === "string" &&
+      typeof parsed.id === "string"
+    ) {
+      return parsed as TaskCursor;
+    }
+  } catch {
+    // The validation error below gives callers one stable failure shape.
+  }
+  throw new ValidationError("Invalid page token");
 }
 
 export async function listTaskActivity(
@@ -200,8 +318,11 @@ export async function updateTask(
   const changes: Record<string, unknown> = {};
 
   if (input.project_id !== undefined) {
-    next.projectId = parseTaskProjectId(input.project_id);
-    await requireProject(db, user, next.projectId);
+    // null unassigns the task; a value must be one of the caller's projects.
+    next.projectId = input.project_id
+      ? parseTaskProjectId(input.project_id)
+      : null;
+    if (next.projectId) await requireProject(db, user, next.projectId);
     changes.project_id = next.projectId;
   }
   if (input.title !== undefined) {
@@ -225,6 +346,10 @@ export async function updateTask(
     next.sortOrder = input.sort_order;
     changes.sort_order = input.sort_order;
   }
+  if (input.source_memo_id !== undefined) {
+    next.sourceMemoId = normalizeSourceMemoId(input.source_memo_id);
+    changes.source_memo_id = next.sourceMemoId;
+  }
 
   let statusChanged = false;
   if (input.status !== undefined && input.status !== existing.status) {
@@ -243,6 +368,7 @@ export async function updateTask(
     .update(tasks)
     .set({
       projectId: next.projectId,
+      sourceMemoId: next.sourceMemoId,
       title: next.title,
       notes: next.notes,
       status: next.status,
@@ -266,6 +392,15 @@ export async function updateTask(
 // Reorder
 // ---------------------------------------------------------------------------
 
+// Bounded so one request fans out into at most one bounded write batch.
+const REORDER_MAX_TASKS = 200;
+
+/**
+ * Reorder a project's tasks in one D1 batch (a single implicit transaction).
+ * A task id that does not belong to this project under this user is a hard
+ * validation error, not a silent ignore — a stray id almost always means the
+ * client mixed up boards.
+ */
 export async function reorderTasks(
   db: FlareMoDb,
   user: UserRow,
@@ -273,61 +408,138 @@ export async function reorderTasks(
   projectId: string,
   taskIds: string[],
 ): Promise<TaskDto[]> {
+  if (taskIds.length > REORDER_MAX_TASKS) {
+    throw new ValidationError(
+      `Cannot reorder more than ${REORDER_MAX_TASKS} tasks at once.`,
+    );
+  }
+  if (new Set(taskIds).size !== taskIds.length) {
+    throw new ValidationError("Reorder task ids must be unique.");
+  }
   const normalizedProjectId = parseTaskProjectId(projectId);
   await requireProject(db, user, normalizedProjectId);
 
-  // Only reorder tasks the user actually owns within this project; a stray id
-  // is ignored rather than failing the whole reorder.
-  const owned = await db
-    .select()
-    .from(tasks)
-    .where(
-      and(
-        eq(tasks.userId, user.id),
-        eq(tasks.projectId, normalizedProjectId),
-        inArray(tasks.id, taskIds),
-      ),
-    );
-
-  const now = new Date().toISOString();
-  const byId = new Map(owned.map((row) => [row.id, row]));
-  const ordered = taskIds.filter((id) => byId.has(id));
-  for (const [index, id] of ordered.entries()) {
-    await db
-      .update(tasks)
-      .set({ sortOrder: index, updatedAt: now })
-      .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)));
+  if (taskIds.length > 0) {
+    const owned = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.userId, user.id),
+          eq(tasks.projectId, normalizedProjectId),
+          isNull(tasks.deletedAt),
+          inArray(tasks.id, taskIds),
+        ),
+      );
+    const ownedIds = new Set(owned.map((row) => row.id));
+    const stray = taskIds.filter((id) => !ownedIds.has(id));
+    if (stray.length > 0) {
+      throw new ValidationError(
+        `Task does not belong to this project: ${stray[0]}`,
+      );
+    }
   }
 
+  const now = new Date().toISOString();
+  const updateStatements = taskIds.map((id, index) =>
+    db
+      .update(tasks)
+      .set({ sortOrder: index, updatedAt: now })
+      .where(and(eq(tasks.id, id), eq(tasks.userId, user.id))),
+  );
   // A reorder is project-scoped, so the activity row has no single task id.
-  await appendActivity(db, user, actor, null, "reordered", {
-    project_id: normalizedProjectId,
-    task_ids: ordered,
+  const activityStatement = db.insert(taskActivity).values({
+    taskId: null,
+    userId: user.id,
+    actorType: actor.type,
+    actorName: actor.type === "agent" ? (actor.name ?? null) : null,
+    action: "reordered",
+    changes: {
+      project_id: normalizedProjectId,
+      task_ids: taskIds,
+    },
+    createdAt: now,
   });
+  await db.batch([
+    ...updateStatements,
+    activityStatement,
+  ] as unknown as Parameters<FlareMoDb["batch"]>[0]);
 
-  return listTasks(db, user, { projectId: normalizedProjectId });
+  const listed = await listTasks(db, user, { projectId: normalizedProjectId });
+  return listed.tasks;
 }
 
 // ---------------------------------------------------------------------------
-// Delete
+// Recycle bin (soft delete)
 // ---------------------------------------------------------------------------
 
-export async function hardDeleteTask(
+/**
+ * Soft-delete a task: it disappears from every live read path and lands in the
+ * recycle bin until restore or the daily TTL purge. The activity trail stays
+ * in place while the task is binned.
+ */
+export async function deleteTask(
   db: FlareMoDb,
   user: UserRow,
   id: string,
 ): Promise<{ ok: true }> {
   await requireTask(db, user, id);
+  const now = new Date().toISOString();
   await db
-    .delete(tasks)
-    .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)));
+    .update(tasks)
+    .set({ deletedAt: now, updatedAt: now })
+    .where(
+      and(eq(tasks.id, id), eq(tasks.userId, user.id), isNull(tasks.deletedAt)),
+    );
   return { ok: true };
+}
+
+export async function restoreTask(
+  db: FlareMoDb,
+  user: UserRow,
+  id: string,
+): Promise<TaskDto> {
+  await requireTask(db, user, id, { includeDeleted: true });
+  await db
+    .update(tasks)
+    .set({ deletedAt: null, updatedAt: new Date().toISOString() })
+    .where(and(eq(tasks.id, id), eq(tasks.userId, user.id)));
+  return taskToDto(await requireTask(db, user, id));
+}
+
+/**
+ * Hard-delete tasks whose recycle-bin TTL expired. The FK cascade removes
+ * their activity rows. Projects hard-delete through their own sweep
+ * (projects.ts), whose FK cascade covers the tasks binned together with them.
+ */
+export async function hardDeleteExpiredTasks(
+  db: FlareMoDb,
+  cutoff: string,
+): Promise<number> {
+  const expired = await db
+    .select({ id: tasks.id })
+    .from(tasks)
+    .where(lt(tasks.deletedAt, cutoff));
+  for (const { id } of expired) {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+  return expired.length;
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+// parseResourceName normalizes a bare id ("abc") or a namespaced one
+// ("projects/abc") to the namespaced form, so callers can pass either.
 function parseTaskProjectId(value: string): string {
-  return value.startsWith("projects/") ? value : `projects/${value}`;
+  return parseResourceName(value.trim(), "projects");
+}
+
+// The bridge back to the memo a task was upgraded from. No FK on purpose: a
+// memo can be hard-deleted without touching its upgraded tasks, and the DTO
+// consumer validates the reference at read time.
+function normalizeSourceMemoId(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? parseResourceName(trimmed, "memos") : null;
 }

@@ -86,17 +86,6 @@ export function currentMemosToListResponse(input: {
   };
 }
 
-export function currentMemoCommentsToListResponse(input: {
-  memos: MemoRow[];
-  user: UserRow;
-  attachmentsByMemo?: ReadonlyMap<string, AttachmentRow[]>;
-  reactionsByMemo?: ReadonlyMap<string, ReactionRow[]>;
-  parentsByMemo?: ReadonlyMap<string, string>;
-  nextPageToken?: string;
-}) {
-  return currentMemosToListResponse(input);
-}
-
 export function currentAttachmentToDto(attachment: AttachmentRow) {
   return {
     name: attachment.id,
@@ -229,22 +218,6 @@ export function currentRelationType(
   value: "reference" | "comment",
 ): "REFERENCE" | "COMMENT" {
   return value === "comment" ? "COMMENT" : "REFERENCE";
-}
-
-export function legacyMemoState(
-  value: unknown,
-): "normal" | "archived" | "trashed" | "deleted" | undefined {
-  if (value === "NORMAL") return "normal";
-  if (value === "ARCHIVED") return "archived";
-  if (
-    value === "normal" ||
-    value === "archived" ||
-    value === "trashed" ||
-    value === "deleted"
-  ) {
-    return value;
-  }
-  return undefined;
 }
 
 function currentProperty(value: unknown) {

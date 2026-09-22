@@ -138,7 +138,7 @@ function DropdownMenuLabel({
       <Menu.GroupLabel
         data-slot="dropdown-menu-label"
         className={cn(
-          "px-2.5 py-1 text-[11px] font-semibold text-fog",
+          "px-2.5 py-1 text-xs font-semibold text-fog",
           inset && "pl-8",
           className,
         )}

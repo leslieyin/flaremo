@@ -10,6 +10,17 @@ import { ensurePwaServiceWorkerRegistration } from "./pwa.ts";
 import "./index.css";
 import App from "./App.tsx";
 
+// Dev-only element picker (see src/dev/react-grab.ts). The import itself is
+// gated rather than just the install call: `import.meta.env.DEV` is replaced
+// with `false` in a production build, so the branch — and with it the dynamic
+// import and every module it reaches — is dropped before bundling. Gating only
+// the call would still emit react-grab as a lazy chunk that ships in `dist/`.
+if (import.meta.env.DEV) {
+  void import("@/dev/react-grab.ts").then(({ installReactGrab }) => {
+    installReactGrab();
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

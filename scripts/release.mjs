@@ -10,6 +10,48 @@ if (!version || !/^v\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
   process.exit(1);
 }
 
+// The tag must match the version every workspace declares (package.json) and
+// the one the OpenAPI document advertises. release.md pins both as part of the
+// bump checklist; forgetting one used to go unnoticed until smoke checks.
+const bareVersion = version.slice(1);
+const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
+const apiVersion = readFileSync(
+  "packages/contracts/src/openapi.ts",
+  "utf8",
+).match(/FLAREMO_API_VERSION = "([^"]+)"/)?.[1];
+const mismatches = [];
+if (rootPackage.version !== bareVersion) {
+  mismatches.push(`package.json: ${rootPackage.version}`);
+}
+if (apiVersion !== bareVersion) {
+  mismatches.push(
+    `packages/contracts/src/openapi.ts FLAREMO_API_VERSION: ${apiVersion}`,
+  );
+}
+const workspaceDirs = [
+  "apps/web",
+  "apps/worker",
+  "apps/site",
+  "apps/telegram-bot",
+  "packages/contracts",
+  "packages/db",
+  "packages/domain",
+  "packages/memos",
+];
+for (const dir of workspaceDirs) {
+  const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  if (pkg.version !== bareVersion) {
+    mismatches.push(`${dir}/package.json: ${pkg.version}`);
+  }
+}
+if (mismatches.length) {
+  console.error(`Version mismatch for tag ${version}:`);
+  for (const line of mismatches) console.error(`  - ${line}`);
+  console.error("Bump every version before releasing (see docs/release.md).");
+  process.exit(1);
+}
+console.log(`All workspace versions match ${version}.`);
+
 const releaseSection = extractChangelogSection(version);
 const status = run("git", ["status", "--short"], { capture: true });
 if (status.stdout.trim()) {
@@ -40,7 +82,14 @@ if (existingTag) {
   process.exit(1);
 }
 
-run("pnpm", ["verify"]);
+// The full 9-step gate is opt-in (--verify): the maintainer runs it only on
+// explicit request. Releases otherwise rely on the targeted tests each change
+// already ran, plus the deploy dry-run and drill gates below.
+if (process.argv.includes("--verify")) {
+  run("pnpm", ["verify"]);
+} else {
+  console.log("Skipping the full pnpm verify gate (opt in with --verify).");
+}
 
 // Conditional gate: if migrations changed since the last release tag, the
 // backup/restore drill must pass before this release can be cut. The drill

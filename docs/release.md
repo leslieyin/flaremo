@@ -4,13 +4,13 @@ FlareMo 使用 Git tag 和 GitHub Release 发布版本。仓库有瘦 CI（forma
 
 ## 标准流程（runbook）
 
-项目没有 CI、没有 Workers Builds 自动部署，所有门禁都在维护者本地跑。一次「改动 → 推送 → 测试 → 发版」按这个顺序：
+仓库有瘦 CI、没有 Workers Builds 自动部署；E2E 与部署之外的完整门禁都在维护者本地跑（瘦 CI 只做 format / lint / typecheck / 单元测试的快速防线）。一次「改动 → 推送 → 测试 → 发版」按这个顺序：
 
 1. **改动与提交**：产品改动走 feature 分支 + conventional commits（`feat(...)`、`fix(...)`、`chore(...)`）；文档等小改动可直接提交 main。推送前先 `pnpm check`（lint + typecheck）。
 2. **合并与推送**：main 统一 fast-forward（`git checkout main && git merge --ff-only <branch> && git push origin main`），保持线性历史。**合并依赖更新 PR 必须逐个合、每个之间先 rebase/重新解析**：并行合并两个基于同一旧 lockfile 的 PR 会把 `pnpm-lock.yaml` 写坏（duplicated key）；且 Dependabot 不遵守 `minimumReleaseAge` 供应链策略，其 lockfile 改动合并后必须用 `pnpm install` 重新解析并确认通过策略校验。
-3. **测试门禁**：`pnpm verify` = 持久化清单校验 + biome format:check + lint/typecheck + Vitest + 全量构建 + Playwright E2E。大改动在推送前先跑一遍；发版脚本会再跑一遍作为最终门禁。**新增文件先过 `pnpm format`**（biome 会拦未格式化文件）。
+3. **测试门禁**：默认只跑与改动直接相关的定向用例（单个 Vitest 文件 / 单个 e2e spec），提交前过 `pnpm format`。全量 `pnpm verify`（13 步：持久化清单 + format:check + lint/typecheck + Vitest + 构建 + E2E）**只在维护者明确要求时执行**，发版也不需要；`pnpm release --verify` 可按需开启。**新增文件先过 `pnpm format`**（biome 会拦未格式化文件）。
 4. **发版准备**：更新 `CHANGELOG.md`（新增 `## vX.Y.Z` 小节，写清升级影响、Cloudflare 资源变化、Memos 兼容面变化），统一 bump 版本号——根 package.json + 全部 `apps/*`、`packages/*` 的 package.json，外加 `packages/contracts/src/openapi.ts` 的 `FLAREMO_API_VERSION`——提交 `chore(release): prepare vX.Y.Z` 并推送 main。
-5. **发版**：`pnpm release vX.Y.Z`（脚本要求工作区干净且 `HEAD == origin/main`），依次执行 verify、deploy:dry-run、打 tag、推 tag、用 CHANGELOG 小节创建 GitHub Release。
+5. **发版**：`pnpm release vX.Y.Z`（脚本要求工作区干净且 `HEAD == origin/main`），依次执行 deploy:dry-run、打 tag、推 tag、用 CHANGELOG 小节创建 GitHub Release。全量门禁默认跳过，需要时用 `pnpm release vX.Y.Z --verify`。
 6. **部署**：部署永远是维护者本地手动执行 `pnpm deploy`（自动应用远端 D1 migration；本地需 ≥32 字符的 `BETTER_AUTH_SECRET` 环境变量，CI 环境降级为警告，见 [deploy.md](./deploy.md)）。不存在任何 push 触发的自动部署。
 
 ## 版本号
@@ -26,10 +26,11 @@ FlareMo 使用 Git tag 和 GitHub Release 发布版本。仓库有瘦 CI（forma
 ## 发布前门禁
 
 ```bash
-pnpm verify
 pnpm deploy:dry-run
 pnpm backup:drill
 ```
+
+全量 `pnpm verify` 仅在维护者明确要求时运行（`pnpm release vX.Y.Z --verify`）。
 
 涉及数据库变更时，还要检查：
 
@@ -74,7 +75,7 @@ pnpm deploy
 pnpm release vX.Y.Z
 ```
 
-发布脚本会检查工作树、确认 `HEAD` 已经推到 `origin/main`、提取 `CHANGELOG.md` 中对应版本的 release notes、执行 `pnpm verify` 和 `pnpm deploy:dry-run`，然后创建 tag 和 GitHub Release。
+发布脚本会检查工作树、确认 `HEAD` 已经推到 `origin/main`、提取 `CHANGELOG.md` 中对应版本的 release notes、执行 `pnpm deploy:dry-run`（migration 有变化时先跑 `backup:drill`），然后创建 tag 和 GitHub Release。全量 `pnpm verify` 默认跳过，仅在明确要求时用 `--verify` 开启。
 
 ## 回滚
 
@@ -82,7 +83,6 @@ pnpm release vX.Y.Z
 
 ```bash
 git checkout <previous-tag>
-pnpm verify
 pnpm deploy
 ```
 

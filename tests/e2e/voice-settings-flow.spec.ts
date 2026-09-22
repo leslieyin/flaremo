@@ -51,6 +51,9 @@ for (const mobile of [false, true]) {
     ).toHaveCount(0);
     expect(settingsRequests).toBe(0);
     release();
+    // Voice settings moved to their own settings pane; the pane entry only
+    // appears once the viewer permission resolves.
+    await page.getByRole("button", { name: /语音服务|Voice service/i }).click();
     await expect(
       page.getByText(/Voice recognition settings|语音识别设置/, {
         exact: true,
@@ -74,6 +77,9 @@ for (const mobile of [false, true]) {
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true);
+    // A /me route callback may still be mid-fetch when the assertions pass;
+    // ignore those stragglers so they cannot fail the next test.
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 }
 
@@ -113,6 +119,7 @@ for (const role of ["member", "unavailable"]) {
       }),
     ).toHaveCount(0);
     expect(settingsRequests).toBe(0);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   });
 }
 
@@ -120,6 +127,7 @@ test("owner saves encrypted credentials through the UI and disables capture", as
   page,
 }) => {
   await page.goto("/account");
+  await page.getByRole("button", { name: /语音服务|Voice service/i }).click();
   await expect(page.locator("#voice-secretKey")).toBeVisible();
   await page.locator("#voice-appId").fill("1234567890");
   await page.locator("#voice-secretId").fill("e2e-not-a-real-secret-id");
@@ -137,7 +145,9 @@ test("owner saves encrypted credentials through the UI and disables capture", as
   const metadata = await page.request.get("/api/app/voice-settings");
   expect(await metadata.text()).not.toContain("e2e-not-a-real");
   const status = await page.request.get("/api/app/capture/status");
-  expect(await status.json()).toEqual({
+  // The status payload carries an extra `kind` discriminator; assert only the
+  // fields this test cares about so unrelated API additions don't break it.
+  expect(await status.json()).toMatchObject({
     available: true,
     streaming: true,
     provider: "tencent",
@@ -159,7 +169,7 @@ test("owner saves encrypted credentials through the UI and disables capture", as
     /Credentials deleted|凭据已删除/,
   );
   const disabled = await page.request.get("/api/app/capture/status");
-  expect(await disabled.json()).toEqual({
+  expect(await disabled.json()).toMatchObject({
     available: false,
     streaming: false,
     provider: null,

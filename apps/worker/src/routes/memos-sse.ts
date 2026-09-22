@@ -88,9 +88,18 @@ memosSseApi.get("/api/v1/sse", async (c) => {
             }
             if (events.length < eventBatchSize) break;
           }
-        } catch {
+        } catch (error) {
           // A stream cannot return a structured error after headers are sent.
-          // Closing forces EventSource clients to reconnect with their cursor.
+          // Closing forces EventSource clients to reconnect with their cursor;
+          // the error is still logged so a persistent D1 failure is visible
+          // server-side instead of surfacing only as endless reconnects.
+          console.error(
+            JSON.stringify({
+              level: "error",
+              message: "Memos SSE poll failed",
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          );
           closeStream();
         } finally {
           polling = false;

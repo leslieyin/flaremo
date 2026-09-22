@@ -11,7 +11,7 @@
 
 - **仓库与部署**：仓库 `FlareMo`（开源主仓）。部署一律手动 `wrangler deploy`，无 CI/自动部署（不要新增）。
 - **wrangler 配置陷阱**：根目录 `wrangler.json` 是给 Deploy 按钮用的零占位文件；一切 D1 类 wrangler 命令必须显式 `--config ./wrangler.jsonc`。官网部署：`cd apps/site && pnpm deploy`（内部 `build + wrangler deploy --config ./wrangler.jsonc`）。
-- **门禁顺序**：`pnpm format`（prettier/biome，format 先过）→ `pnpm lint`（biome）→ `pnpm typecheck` → `pnpm test`（vitest）→ e2e（Playwright，`tests/e2e/`，14 个 spec 文件）。全绿才可部署。
+- **门禁顺序**：`pnpm format`（biome，format 先过）→ `pnpm lint`（biome）→ `pnpm typecheck` → `pnpm test`（vitest）→ e2e（Playwright，`tests/e2e/`，14 个 spec 文件）。全绿才可部署。
 - **并行会话**：同仓可能有其他会话在 commit/部署。开工前 `git status` + `git log --oneline -5` 确认基线；异动时先 `git reflog` 核对，**不要 stash/reset** 别人的提交。
 - **提交**：一个批次一个 commit（或按文件组分小 commit），message 用 `refactor(ui)/feat(site)` 前缀。不要动 `wrangler.json`、不要碰 `.github/`。
 - **版本钉子**：`@base-ui/react` 锁 `1.8.0`（`~1.8.0`）。开工前 `npm view @base-ui/react version` 核对是否有更高 minor，若升级需过一遍 [CHANGELOG](https://github.com/mui/base-ui/blob/main/CHANGELOG.md) 中的 breaking 条目再定。

@@ -74,7 +74,7 @@ export function LocaleSwitcher({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-44 p-1.5">
-        <DropdownMenuLabel className="px-2 py-1 text-[10px] text-fog font-medium">
+        <DropdownMenuLabel className="px-2 py-1 text-xs text-fog font-medium">
           语言 / Language
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

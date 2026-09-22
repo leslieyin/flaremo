@@ -51,7 +51,9 @@
 - 不做多团队、组织切换器（`organizations` 表天然支持，未来按空间列表扩展即可）；
 - 不改 Memos-compatible 端点（`/api/v1/memos`、current RPC）——legacy 路由显式
   剥离 `space` 参数，契约零感知；`space` 只在 `/api/app/*` 生效，全部可选参数。
-- 日历、每日回顾、随机漫步暂不接 space（它们以个人任务/个人写作为主体，后续单议）；
+- 日历、每日回顾、随机漫步暂不接 space（它们以个人任务/个人写作为主体；
+  团队共享任务清单已拍板为远期候选并维持个人私有，触发条件与决策记录见
+  `product-requirements.md`「决策记录 · D4」）；
 - SSE、通知不感知 space。
 
 ## 分批实施

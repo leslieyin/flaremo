@@ -1,44 +1,60 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { CalendarDaysIcon, PlusIcon } from "lucide-react";
 import { useMemo } from "react";
-import { getDailyReview, type Memo } from "@/api";
+import { getDailyReview, listMemos, type Memo } from "@/api";
 import { MemoSnapshotCard } from "@/components/memo-snapshot-card";
 import { SubpageHeader } from "@/components/subpage-header";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useI18n } from "@/i18n";
+import { type TranslationKey, type TranslationParams, useI18n } from "@/i18n";
+import { todayKey } from "@/lib/calendar-date";
 
 export function DailyReviewPage() {
   const { locale, t } = useI18n();
-  const today = useMemo(() => formatLocalDate(new Date()), []);
+  const today = useMemo(() => todayKey(), []);
   const tzOffset = useMemo(() => -new Date().getTimezoneOffset(), []);
   const reviewQuery = useQuery({
     queryKey: ["daily-review", today, tzOffset],
     queryFn: () => getDailyReview(today, tzOffset),
     retry: false,
   });
+
+  // Cold-start interval ladder for users in their first year:
+  // when "on-this-day" returns nothing, pull earlier memos from recent weeks/months.
+  const intervalQuery = useQuery({
+    queryKey: ["daily-review-ladder", today],
+    queryFn: () => listMemos({ page_size: 12, state: "normal" }),
+    enabled: Boolean(reviewQuery.data && reviewQuery.data.memos.length === 0),
+    retry: false,
+  });
+
+  const rawMemos =
+    reviewQuery.data && reviewQuery.data.memos.length > 0
+      ? reviewQuery.data.memos
+      : (intervalQuery.data?.memos ?? []);
+
   const groups = useMemo(
-    () => groupByYearsAgo(reviewQuery.data?.memos ?? []),
-    [reviewQuery.data],
+    () => buildReviewGroups(rawMemos, today, locale, t),
+    [rawMemos, today, locale, t],
   );
+
+  const isInitialLoading = reviewQuery.isLoading;
 
   return (
     <div className="min-h-svh bg-background px-4 py-5 sm:py-8">
       <main className="mx-auto flex w-full max-w-[640px] flex-col gap-4">
-        <SubpageHeader />
+        <SubpageHeader title={t("nav.dailyReview")} />
 
-        <div className="px-1">
-          <h1 className="font-heading text-xl font-semibold">
-            {t("nav.dailyReview")}
-          </h1>
-        </div>
-
-        {reviewQuery.isLoading && (
+        {isInitialLoading && (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-6 w-32" />
             <Skeleton className="h-32 w-full" />
@@ -61,22 +77,51 @@ export function DailyReviewPage() {
             </Button>
           </Empty>
         )}
-        {reviewQuery.data && groups.length === 0 && (
-          <Empty className="min-h-72 border">
-            <EmptyHeader>
-              <EmptyTitle>{t("review.dailyEmptyTitle")}</EmptyTitle>
-              <EmptyDescription>
-                {t("review.dailyEmptyDescription")}
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        )}
+        {reviewQuery.data &&
+          !isInitialLoading &&
+          groups.length === 0 &&
+          !intervalQuery.isLoading && (
+            <Empty className="min-h-72 border border-border/60 bg-card/50 motion-safe:animate-rise">
+              <EmptyHeader>
+                <EmptyMedia
+                  className="bg-accent text-accent-foreground"
+                  variant="icon"
+                >
+                  <CalendarDaysIcon className="size-5" />
+                </EmptyMedia>
+                <EmptyTitle>{t("review.dailyEmptyTitle")}</EmptyTitle>
+                <EmptyDescription>
+                  {t("review.dailyEmptyDescription")}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button
+                  render={
+                    <Link
+                      search={{
+                        compose: true,
+                        q: undefined,
+                        tag: undefined,
+                        view: undefined,
+                        space: undefined,
+                        untagged: undefined,
+                      }}
+                      to="/"
+                    />
+                  }
+                  size="sm"
+                  variant="outline"
+                >
+                  <PlusIcon className="size-4" data-icon="inline-start" />
+                  {t("review.writeTodayMemo")}
+                </Button>
+              </EmptyContent>
+            </Empty>
+          )}
         {groups.map((group) => (
-          <section className="flex flex-col gap-3" key={group.yearsAgo}>
+          <section className="flex flex-col gap-3" key={group.key}>
             <h2 className="px-1 text-sm font-medium text-muted-foreground">
-              {group.yearsAgo === 1
-                ? t("review.oneYearAgoToday")
-                : t("review.yearsAgoToday", { count: group.yearsAgo })}
+              {group.title}
             </h2>
             {group.memos.map((memo) => (
               <MemoSnapshotCard key={memo.name} locale={locale} memo={memo} />
@@ -88,31 +133,68 @@ export function DailyReviewPage() {
   );
 }
 
-type YearGroup = {
-  yearsAgo: number;
+type ReviewGroup = {
+  key: string;
+  title: string;
   memos: Memo[];
 };
 
-function groupByYearsAgo(memos: Memo[]): YearGroup[] {
+function buildReviewGroups(
+  memos: Memo[],
+  todayStr: string,
+  locale: string,
+  t: (key: TranslationKey, params?: TranslationParams) => string,
+): ReviewGroup[] {
   const currentYear = new Date().getFullYear();
-  const groups: YearGroup[] = [];
+  const groups: ReviewGroup[] = [];
+
   for (const memo of memos) {
-    const year = new Date(memo.create_time).getFullYear();
+    const timeStr = memo.display_time ?? memo.create_time;
+    const memoDate = new Date(timeStr);
+    const dateOnly = timeStr.slice(0, 10);
+    // Exclude notes written today so daily review focuses strictly on the past
+    if (dateOnly === todayStr) continue;
+
+    const year = memoDate.getFullYear();
     const yearsAgo = currentYear - year;
-    if (Number.isNaN(yearsAgo) || yearsAgo < 1) continue;
-    const group = groups.at(-1);
-    if (group && group.yearsAgo === yearsAgo) {
-      group.memos.push(memo);
+
+    let key: string;
+    let title: string;
+
+    if (yearsAgo >= 1) {
+      key = `years-${yearsAgo}`;
+      title =
+        yearsAgo === 1
+          ? t("review.oneYearAgoToday")
+          : t("review.yearsAgoToday", { count: yearsAgo });
     } else {
-      groups.push({ yearsAgo, memos: [memo] });
+      // First-year progressive interval ladder (Ebbinghaus spaced repetition)
+      const diffDays = Math.max(
+        1,
+        Math.floor((Date.now() - memoDate.getTime()) / 86_400_000),
+      );
+      if (diffDays <= 7) {
+        key = "ladder-7d";
+        title = locale.startsWith("zh") ? "7 天前" : "7 days ago";
+      } else if (diffDays <= 30) {
+        key = "ladder-30d";
+        title = locale.startsWith("zh") ? "30 天前" : "30 days ago";
+      } else if (diffDays <= 90) {
+        key = "ladder-90d";
+        title = locale.startsWith("zh") ? "90 天前" : "90 days ago";
+      } else {
+        key = "ladder-180d";
+        title = locale.startsWith("zh") ? "半年前" : "6 months ago";
+      }
+    }
+
+    const existing = groups.find((g) => g.key === key);
+    if (existing) {
+      existing.memos.push(memo);
+    } else {
+      groups.push({ key, title, memos: [memo] });
     }
   }
-  return groups;
-}
 
-function formatLocalDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return groups;
 }

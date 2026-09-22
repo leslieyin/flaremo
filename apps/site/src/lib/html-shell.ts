@@ -1,8 +1,9 @@
 import {
   buildSeoHead,
   type Locale,
+  localeDirection,
   localeHref,
-  normalizeLocale,
+  localeHtmlLang,
   type SeoHead,
 } from "@/lib/seo";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
@@ -17,9 +18,10 @@ export function renderHtmlShell(
   seo: SeoHead,
   locale: Locale = "en",
 ): string {
-  const norm = normalizeLocale(locale);
-  const lang = norm === "zh" ? "zh-CN" : norm;
-  const dir = norm === "ar" ? "rtl" : "ltr";
+  // Same helpers the client-side effect in RootLayout uses, so a locale switch
+  // without a reload lands on exactly the values this shell was built with.
+  const lang = localeHtmlLang(locale);
+  const dir = localeDirection(locale);
 
   const metaTags = seo.meta
     .map((m) => {

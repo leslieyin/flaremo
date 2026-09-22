@@ -3,8 +3,11 @@ export type CaptureState =
   | "requesting_permission"
   | "connecting"
   | "recording"
+  | "paused"
   | "reconnecting"
   | "stopping"
+  /** Batch ASR: audio recorded, waiting for the provider (rollout §3.3). */
+  | "transcribing"
   | "review"
   | "error";
 

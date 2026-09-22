@@ -1,6 +1,6 @@
 import type { FlareMoDb, MemoRow, UserRow } from "@flaremo/db";
 import { memoRelations, memos, memoTags, tasks, users } from "@flaremo/db";
-import { and, asc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import { ValidationError } from "./errors";
 import { parseResourceName } from "./ids";
 import { getMemoById } from "./memos";
@@ -374,6 +374,7 @@ export async function createOverdueTaskNotifications(
     .from(tasks)
     .where(
       and(
+        isNull(tasks.deletedAt),
         lt(tasks.dueAt, date),
         inArray(tasks.status, ["todo", "in_progress"]),
       ),

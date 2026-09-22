@@ -1,13 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  addDays,
   addMonths,
   buildMonthGrid,
+  buildWeekGrid,
   dayFilterFromQuery,
   dayFilterQuery,
+  formatFullDayHeader,
   isoDay,
   monthOf,
   nextDay,
+  prevDay,
   todayKey,
+  weekdayHeaders,
   weekdayLabels,
 } from "./calendar-date";
 
@@ -22,9 +27,38 @@ describe("isoDay / todayKey", () => {
   });
 });
 
-describe("nextDay", () => {
+describe("nextDay / prevDay", () => {
   it("crosses month boundaries", () => {
     expect(nextDay("2026-08-31")).toBe("2026-09-01");
+    expect(prevDay("2026-09-01")).toBe("2026-08-31");
+  });
+});
+
+describe("addDays", () => {
+  it("steps forward and backward across month and year boundaries", () => {
+    expect(addDays("2026-09-20", 0)).toBe("2026-09-20");
+    expect(addDays("2026-09-20", 7)).toBe("2026-09-27");
+    expect(addDays("2026-09-28", 7)).toBe("2026-10-05");
+    expect(addDays("2026-01-01", -1)).toBe("2025-12-31");
+  });
+
+  it("rolls over short months and the year boundary", () => {
+    expect(addDays("2026-02-28", 1)).toBe("2026-03-01");
+    expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("formatFullDayHeader", () => {
+  it("assembles the zh header from explicit date parts", () => {
+    expect(formatFullDayHeader("2026-09-20", "zh-CN")).toBe(
+      "2026年9月20日 星期日",
+    );
+  });
+
+  it("uses the locale's long date elsewhere", () => {
+    expect(formatFullDayHeader("2026-09-20", "en-US")).toBe(
+      "Sunday, September 20, 2026",
+    );
   });
 });
 
@@ -62,9 +96,31 @@ describe("buildMonthGrid", () => {
       ).getDay(),
     ).toBe(0);
   });
+
+  it("trims the 6th week in compact mode when all days are out-of-month", () => {
+    const compactGrid = buildMonthGrid("2026-09", "monday", true);
+    expect(compactGrid).toHaveLength(35);
+    expect(compactGrid[34].key).toBe("2026-10-04");
+  });
 });
 
-describe("weekdayLabels", () => {
+describe("buildWeekGrid", () => {
+  it("produces 7 days anchored to the week start containing the date", () => {
+    // 2026-09-20 is a Sunday. With Monday week start, week is 2026-09-14 to 2026-09-20.
+    const week = buildWeekGrid("2026-09-20", "monday");
+    expect(week).toHaveLength(7);
+    expect(week[0].key).toBe("2026-09-14");
+    expect(week[6].key).toBe("2026-09-20");
+
+    // With Sunday week start, week starts on 2026-09-20.
+    const sundayWeek = buildWeekGrid("2026-09-20", "sunday");
+    expect(sundayWeek).toHaveLength(7);
+    expect(sundayWeek[0].key).toBe("2026-09-20");
+    expect(sundayWeek[6].key).toBe("2026-09-26");
+  });
+});
+
+describe("weekdayLabels / weekdayHeaders", () => {
   it("orders weekday labels by week start", () => {
     expect(weekdayLabels("sunday", (day) => `${day + 1}`)).toEqual([
       "1",
@@ -84,6 +140,15 @@ describe("weekdayLabels", () => {
       "7",
       "1",
     ]);
+  });
+
+  it("formats localized weekday headers correctly without magic month offset", () => {
+    // In zh-CN, Monday to Sunday narrow format should be 一, 二, 三, 四, 五, 六, 日
+    const zhMonday = weekdayHeaders("monday", "zh-CN", "narrow");
+    expect(zhMonday).toEqual(["一", "二", "三", "四", "五", "六", "日"]);
+
+    const zhSunday = weekdayHeaders("sunday", "zh-CN", "narrow");
+    expect(zhSunday).toEqual(["日", "一", "二", "三", "四", "五", "六"]);
   });
 });
 

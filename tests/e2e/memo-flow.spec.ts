@@ -18,10 +18,11 @@ test("creates a memo and filters it by tag", async ({ page }) => {
   await expect(composer).toBeVisible();
 
   await composer.fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
   // Submission is done when the composer clears; the card and the composer
-  // briefly both show the content while the optimistic insert lands.
-  await expect(composer).toHaveValue("");
+  // briefly both show the content while the optimistic insert lands. The
+  // composer is a rich contenteditable, so emptiness reads as empty text.
+  await expect(composer).toHaveText("");
   await expect(page.getByText(content)).toBeVisible();
   await expect(page.getByText(`#${tag}`, { exact: true })).toBeVisible();
 
@@ -43,7 +44,7 @@ test("restores an unfinished new-memo draft after a reload", async ({
   await page.reload();
   await expect(
     page.getByRole("textbox", { name: /new note|新笔记/i }),
-  ).toHaveValue(content);
+  ).toHaveText(content);
   await expect(
     page.getByText(/restored.*draft|已恢复未完成的草稿/i),
   ).toBeVisible();
@@ -59,7 +60,7 @@ test("queues an offline note and saves it after connectivity returns", async ({
   await expect(composer).toBeVisible();
   await page.context().setOffline(true);
   await composer.fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
   await expect(page.getByText(/offline|离线/i)).toBeVisible();
 
   await page.context().setOffline(false);
@@ -91,10 +92,8 @@ test("searches timeline and archived notes by default and supports archive synta
   expect(archiveResponse.ok()).toBe(true);
 
   await page.goto("/");
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /archive|归档/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /archive|归档/i }).click();
   const search = page.getByRole("textbox", { name: /search|搜索/i });
   await search.fill(`search marker ${marker}`);
   await expect(
@@ -236,10 +235,10 @@ test("keeps a composer draft when saving fails", async ({ page }) => {
   await page.goto("/");
   const composer = page.getByRole("textbox", { name: /new note|新笔记/i });
   await composer.fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
 
   await expect(page.getByText("temporary create failure")).toBeVisible();
-  await expect(composer).toHaveValue(content);
+  await expect(composer).toHaveText(content);
 });
 
 test("edits and shares a memo", async ({ page }) => {
@@ -249,10 +248,10 @@ test("edits and shares a memo", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("textbox", { name: /new note|新笔记/i }).fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
   await expect(
     page.getByRole("textbox", { name: /new note|新笔记/i }),
-  ).toHaveValue("");
+  ).toHaveText("");
   await expect(
     page.locator("article").filter({ hasText: content }),
   ).toBeVisible();
@@ -273,17 +272,17 @@ test("edits and shares a memo", async ({ page }) => {
   ).toHaveCount(0);
 
   const updatedCard = page.locator("article").filter({ hasText: updated });
-  // Share now opens the Feishu-style dialog: pick public, confirm, and the
-  // public link appears on the card.
+  // Visibility now lives in a ⋯ submenu: going public provisions the link,
+  // which then shows on the card and can be copied from the same menu.
   await updatedCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /share|分享/i }).click();
-  const shareDialog = page.getByRole("dialog");
-  await shareDialog
-    .getByRole("button", { name: /全网公开|Public web/i })
-    .click();
-  await shareDialog.getByRole("button", { name: /保存|^Save$/i }).click();
-  await expect(shareDialog).toHaveCount(0);
+  await page.getByRole("menuitem", { name: /visibility|可见性/i }).click();
+  await page.getByRole("menuitem", { name: /全网公开|Public web/i }).click();
   await expect(updatedCard.getByText(/\/share\//)).toBeVisible();
+  await updatedCard.getByRole("button", { name: /actions|操作/i }).click();
+  await expect(
+    page.getByRole("menuitem", { name: /copy link|复制链接/i }),
+  ).toBeEnabled();
+  await page.keyboard.press("Escape");
 });
 
 test("archives and restores a memo", async ({ page }) => {
@@ -291,10 +290,10 @@ test("archives and restores a memo", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("textbox", { name: /new note|新笔记/i }).fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
   await expect(
     page.getByRole("textbox", { name: /new note|新笔记/i }),
-  ).toHaveValue("");
+  ).toHaveText("");
   await expect(
     page.locator("article").filter({ hasText: content }),
   ).toBeVisible();
@@ -302,19 +301,15 @@ test("archives and restores a memo", async ({ page }) => {
   const card = page.locator("article").filter({ hasText: content });
   await card.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /archive|归档/i }).click();
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /archive|归档/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /archive|归档/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const archivedCard = page.locator("article").filter({ hasText: content });
   await archivedCard.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /timeline|时间线/i }).click();
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /timeline|时间线/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /all|全部/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 });
 
@@ -323,10 +318,10 @@ test("trashes, restores, and hard-deletes a memo", async ({ page }) => {
 
   await page.goto("/");
   await page.getByRole("textbox", { name: /new note|新笔记/i }).fill(content);
-  await page.getByRole("button", { name: /save|保存|send|发送/i }).click();
+  await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
   await expect(
     page.getByRole("textbox", { name: /new note|新笔记/i }),
-  ).toHaveValue("");
+  ).toHaveText("");
   await expect(
     page.locator("article").filter({ hasText: content }),
   ).toBeVisible();
@@ -334,28 +329,22 @@ test("trashes, restores, and hard-deletes a memo", async ({ page }) => {
   const card = page.locator("article").filter({ hasText: content });
   await card.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /trash|回收站/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const trashedCard = page.locator("article").filter({ hasText: content });
   await trashedCard.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /restore|恢复/i }).click();
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /timeline|时间线/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /all|全部/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const finalCard = page.locator("article").filter({ hasText: content });
   await finalCard.getByRole("button", { name: /actions|操作/i }).click();
   await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
-  await page
-    .getByRole("navigation", { name: /navigation|导航/i })
-    .getByRole("button", { name: /trash|回收站/i })
-    .click();
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
   const deleteCard = page.locator("article").filter({ hasText: content });
   await deleteCard.getByRole("button", { name: /actions|操作/i }).click();
   await page
@@ -562,18 +551,18 @@ test("keeps the mobile navigation usable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
+  // Space scope and the low-frequency archive/trash views moved to the
+  // header ScopeSwitcher; the sheet keeps navigation and tags.
+  await page.getByRole("button", { name: /note scope|笔记范围/i }).click();
+  await page.getByRole("menuitem", { name: /archive|归档/i }).click();
+  await expect(page).toHaveURL(/view=archived/);
+
   await page
     .getByRole("button", { name: /toggle sidebar|切换侧边栏/i })
     .click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: /navigation|导航/i }),
-  ).toBeVisible();
-  const navigation = page.getByRole("navigation", {
-    name: /navigation|导航/i,
-  });
-  await expect(
-    navigation.getByRole("button", { name: /archive|归档/i }),
   ).toBeVisible();
   const scroller = page.getByTestId("mobile-sidebar-scroll");
   await expect
@@ -590,7 +579,4 @@ test("keeps the mobile navigation usable", async ({ page }) => {
   await expect(
     page.getByRole("dialog").getByRole("button", { name: /export|导出/i }),
   ).toBeVisible();
-
-  await navigation.getByRole("button", { name: /archive|归档/i }).click();
-  await expect(page.getByRole("dialog")).toBeHidden();
 });

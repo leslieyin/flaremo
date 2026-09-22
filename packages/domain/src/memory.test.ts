@@ -501,7 +501,7 @@ describe("memory domain services", () => {
     });
 
     const bundle = await exportData(db, user);
-    expect(bundle.version).toBe(3);
+    expect(bundle.version).toBe(4);
     expect(bundle.memories).toHaveLength(1);
     expect(bundle.memories[0]?.name).toBe(created.memory.id);
 

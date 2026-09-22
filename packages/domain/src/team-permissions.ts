@@ -4,7 +4,7 @@ import { memos } from "@flaremo/db";
 import { and, eq, inArray, isNull, ne, or, type SQL, sql } from "drizzle-orm";
 import { ForbiddenError } from "./errors";
 
-export type TeamRole = "owner" | "admin" | "member";
+export type TeamRole = "owner" | "admin" | "member" | "reader";
 
 /**
  * The actor for every authorization decision: a domain user plus their role
@@ -36,6 +36,19 @@ export function isTeamOwner(user: TeamViewer | null): boolean {
 export function isTeamAdmin(user: TeamViewer | null): boolean {
   const role = teamRoleOf(user);
   return role === "owner" || role === "admin";
+}
+
+/**
+ * Readers are time-boxed read-only seats (community memberships): they browse
+ * the team space but never publish into it. Personal notes stay fully theirs.
+ */
+export function isTeamReader(user: TeamViewer | null): boolean {
+  return teamRoleOf(user) === "reader";
+}
+
+/** Whether the viewer may publish (or unpublish) memos into the team. */
+export function canPublishTeamMemo(user: TeamViewer | null): boolean {
+  return isActiveTeamMember(user) && !isTeamReader(user);
 }
 
 /**
@@ -146,19 +159,15 @@ export function canReadMemo(user: TeamViewer | null, memo: MemoRow): boolean {
 }
 
 /**
- * Edit the memo's content, payload, pinned flag, or visibility. Own memos
- * only; another author's memo requires the memo's own team owner. Governance
- * stays inside the memo's organization — an owner of organization A must
- * never rewrite or delete organization B's memos, matching the read boundary.
+ * Edit the memo's content, payload, pinned flag, or visibility. Author-only,
+ * without exception: rewriting someone else's words is authorship, never
+ * governance — not even the team owner may do it (docs/content-authority.md).
+ * Removal is the governance path: administrators archive/trash via
+ * canGovernMemo, the owner additionally hard-deletes via canDeleteMemo.
  */
 export function canEditMemo(user: TeamViewer | null, memo: MemoRow): boolean {
   if (!user || user.status !== "active") return false;
-  if (memo.userId === user.id) return true;
-  return (
-    isTeamOwner(user) &&
-    memo.teamId !== null &&
-    memo.teamId === user.teamOrganizationId
-  );
+  return memo.userId === user.id;
 }
 
 /**
@@ -176,7 +185,24 @@ export function canGovernMemo(user: TeamViewer | null, memo: MemoRow): boolean {
   );
 }
 
-export const canDeleteMemo = canEditMemo;
+/**
+ * Hard-delete the memo. Own memos only; another author's memo requires the
+ * owner of the memo's own team. Hard delete is the irreversible end of the
+ * governance ladder — trash (canGovernMemo) is reversible within the recycle
+ * bin TTL, so it stops at administrator while permanent removal stays an
+ * owner-level accountability layer. Governance stays inside the memo's
+ * organization — an owner of organization A must never delete organization
+ * B's memos, matching the read boundary.
+ */
+export function canDeleteMemo(user: TeamViewer | null, memo: MemoRow): boolean {
+  if (!user || user.status !== "active") return false;
+  if (memo.userId === user.id) return true;
+  return (
+    isTeamOwner(user) &&
+    memo.teamId !== null &&
+    memo.teamId === user.teamOrganizationId
+  );
+}
 
 export function assertCanEditMemo(user: TeamViewer, memo: MemoRow): void {
   if (!canEditMemo(user, memo)) {

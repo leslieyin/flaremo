@@ -53,3 +53,44 @@ export const calendarViewSchema = z.object({
 
 export type CalendarViewQuery = z.infer<typeof calendarViewQuerySchema>;
 export type CalendarView = z.infer<typeof calendarViewSchema>;
+
+// ---------------------------------------------------------------------------
+// Hourly activity: 24 buckets (local hours 0–23) for a single calendar day.
+// Used by the Day and Week views to render intra-day heatmaps.
+// ---------------------------------------------------------------------------
+export const hourlyActivityQuerySchema = z
+  .object({
+    date: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+      .optional(),
+    from: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+      .optional(),
+    to: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+      .optional(),
+    // Client UTC offset in minutes (Date#getTimezoneOffset, e.g. -480 for UTC+8).
+    tz: z.coerce.number().int().min(-840).max(840).default(0),
+  })
+  .refine(
+    (q) => Boolean(q.date || (q.from && q.to)),
+    "Must specify either `date` or both `from` and `to`.",
+  );
+
+export const hourlyActivityResponseSchema = z.object({
+  hours: z.array(
+    z.object({
+      date: z.string(),
+      hour: z.number().int().min(0).max(23),
+      count: z.number().int().nonnegative(),
+    }),
+  ),
+});
+
+export type HourlyActivityQuery = z.infer<typeof hourlyActivityQuerySchema>;
+export type HourlyActivityResponse = z.infer<
+  typeof hourlyActivityResponseSchema
+>;

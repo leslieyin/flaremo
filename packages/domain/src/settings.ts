@@ -1,6 +1,6 @@
 import type { FlareMoDb, UserRow } from "@flaremo/db";
 import { settings } from "@flaremo/db";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 export type StoredSetting = {
   key: string;
@@ -25,29 +25,6 @@ export async function getStoredSetting(
   return row
     ? { key: row.key, value: row.value, updatedAt: row.updatedAt }
     : undefined;
-}
-
-export async function listStoredSettings(
-  db: FlareMoDb,
-  user: UserRow,
-  prefix?: string,
-): Promise<StoredSetting[]> {
-  const rows = await db
-    .select({
-      key: settings.key,
-      value: settings.value,
-      updatedAt: settings.updatedAt,
-    })
-    .from(settings)
-    .where(eq(settings.userId, user.id))
-    .orderBy(asc(settings.key));
-  return rows
-    .filter((row) => !prefix || row.key.startsWith(prefix))
-    .map((row) => ({
-      key: row.key,
-      value: row.value,
-      updatedAt: row.updatedAt,
-    }));
 }
 
 export async function upsertStoredSetting(

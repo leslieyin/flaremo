@@ -1,7 +1,6 @@
 import { animate } from "motion";
 import { motion } from "motion/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Progress } from "@/components/ui/progress";
 
 /* ============ 动效 token：全站平滑入场与物理弹跳 ============ */
 
@@ -159,8 +158,8 @@ export function PopIn({
 
 /* ============ AnimatedNumber：数字滚动（SSR 渲染最终值，挂载后 0 → 目标） ============ */
 
-function formatNumber(n: number): string {
-  return new Intl.NumberFormat().format(n);
+function formatNumber(n: number, locale: string): string {
+  return new Intl.NumberFormat(locale).format(n);
 }
 
 export function AnimatedNumber({
@@ -168,11 +167,13 @@ export function AnimatedNumber({
   className,
   prefix = "",
   suffix = "",
+  locale = "en-US",
 }: {
   value: number;
   className?: string;
   prefix?: string;
   suffix?: string;
+  locale?: string;
 }) {
   const reduced = useReducedMotionPreference();
   const [display, setDisplay] = useState(value);
@@ -194,25 +195,8 @@ export function AnimatedNumber({
   return (
     <span className={className} aria-live="polite">
       {prefix}
-      {formatNumber(display)}
+      {formatNumber(display, locale)}
       {suffix}
     </span>
   );
-}
-
-/* ============ GrowProgress：进度条生长 ============ */
-
-export function GrowProgress({
-  value,
-  className,
-}: {
-  value: number;
-  className?: string;
-}) {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setDisplay(value));
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return <Progress value={display} className={className} />;
 }

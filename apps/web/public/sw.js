@@ -107,7 +107,6 @@ function isPrivateAppNavigation(url) {
   const scopePath = scopeUrl.pathname;
   const privateRoutes = [
     `${scopePath}account`,
-    `${scopePath}calendar`,
     `${scopePath}capture`,
     `${scopePath}forgot-password`,
     `${scopePath}login`,

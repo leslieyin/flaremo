@@ -1,8 +1,8 @@
 import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
 import { renderToString } from "react-dom/server";
+import { STATIC_PAGE_META } from "@/content/static-page-meta";
 import { getDoc } from "@/lib/docs-source.generated";
 import { buildSeoForPath, renderHtmlShell } from "@/lib/html-shell";
-import { STATIC_PAGE_META } from "@/lib/route-meta";
 import {
   getLocaleFromPath,
   getPathWithoutLocale,
