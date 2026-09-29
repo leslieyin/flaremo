@@ -167,7 +167,7 @@ describe("FlareMo calendar API", () => {
     expect(weekly).toBeDefined();
     await json(
       await fetchApp(
-        `http://flaremo.test/api/app/tasks/${bareId(weekly!.id)}`,
+        `http://flaremo.test/api/app/tasks/${bareId(weekly?.id)}`,
         {
           method: "PATCH",
           headers: { "content-type": "application/json" },
@@ -196,7 +196,13 @@ describe("FlareMo calendar API", () => {
       }),
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    // The endpoint's `date` is a *local* calendar date (it is paired with
+    // `tz` below), so it has to be formatted in local time. Deriving it from
+    // `toISOString()` instead picks the UTC date, and between local midnight
+    // and 08:00 in any negative-offset-of-UTC zone such as Asia/Shanghai the
+    // two differ — the memo just written then falls outside the window the
+    // test asks about, and the assertion below fails for several hours a day.
+    const today = new Intl.DateTimeFormat("en-CA").format(new Date());
     const tz = new Date().getTimezoneOffset();
     const res = await fetchApp(
       `http://flaremo.test/api/app/stats/hourly?date=${today}&tz=${tz}`,

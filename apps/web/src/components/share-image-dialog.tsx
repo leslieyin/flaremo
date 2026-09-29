@@ -47,8 +47,9 @@ type ShareImageDialogProps = {
 };
 
 /** Card-image body: markdown flattened to the text a picture should carry. */
-function shareBodyText(content: string) {
+export function shareBodyText(content: string) {
   return content
+    .replace(/\r\n/g, "\n")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/^- \[[ xX]\] /gm, "☐ ")
     .replace(/^#{1,3} /gm, "")
@@ -56,6 +57,7 @@ function shareBodyText(content: string) {
     .replace(/\*([^*]+)\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -110,6 +112,7 @@ export function ShareImageDialog({
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const sandboxRef = useRef<ShareCardSandboxHandle>(null);
   const [timeZone] = useState(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
@@ -215,9 +218,31 @@ export function ShareImageDialog({
         dataUrl = (await sandboxRef.current?.exportPng()) ?? null;
         if (!dataUrl) toast.error(t("share.exportFailed"));
       } else {
-        const node = previewRef.current;
-        if (node) {
-          dataUrl = await toPng(node, { pixelRatio: 2 });
+        const targetNode = exportRef.current || previewRef.current;
+        if (targetNode) {
+          try {
+            await document.fonts?.ready;
+          } catch {
+            // ignore font load errors
+          }
+          const width = Math.ceil(
+            targetNode.scrollWidth || targetNode.offsetWidth || size.width,
+          );
+          const height = Math.ceil(
+            targetNode.scrollHeight || targetNode.offsetHeight || size.height,
+          );
+          dataUrl = await toPng(targetNode, {
+            pixelRatio: 2,
+            width,
+            height,
+            cacheBust: true,
+            style: {
+              position: "static",
+              left: "0",
+              top: "0",
+              transform: "none",
+            },
+          });
         }
       }
       if (!dataUrl) return;
@@ -241,9 +266,9 @@ export function ShareImageDialog({
           <DialogTitle>{t("share.imageTitle")}</DialogTitle>
           <DialogDescription>{t("share.imageSubtitle")}</DialogDescription>
         </DialogHeader>
-        <div className="flex justify-center py-2">
+        <div className="flex justify-center py-1 max-h-[60vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:theme(colors.muted.foreground/30)_transparent]">
           {payload?.kind === "document" && (
-            <div ref={previewRef}>
+            <div ref={previewRef} className="rounded-lg shadow-sm">
               <ShareCardDocumentView
                 context={{
                   data: cardData,
@@ -281,6 +306,38 @@ export function ShareImageDialog({
             </div>
           )}
         </div>
+        {payload?.kind === "document" && (
+          <div
+            aria-hidden="true"
+            style={{
+              position: "fixed",
+              left: "-99999px",
+              top: 0,
+              pointerEvents: "none",
+              zIndex: -9999,
+            }}
+          >
+            <div
+              ref={exportRef}
+              style={{
+                width: size.width,
+                minHeight: size.height,
+              }}
+            >
+              <ShareCardDocumentView
+                context={{
+                  data: cardData,
+                  options: optionValues,
+                  mode: dark ? "dark" : "light",
+                }}
+                document={payload.document}
+                height={size.height}
+                mode={dark ? "dark" : "light"}
+                width={size.width}
+              />
+            </div>
+          </div>
+        )}
         <fieldset
           aria-label={t("share.templateLabel")}
           className="flex flex-wrap justify-center gap-1.5 border-0 p-0"

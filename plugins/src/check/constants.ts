@@ -37,6 +37,7 @@ export const STYLE_KEYS = new Set([
   "gap",
   "width",
   "height",
+  "minHeight",
   "flex",
   "align",
   "justify",

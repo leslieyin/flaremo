@@ -13,6 +13,7 @@ import architectureNotes from "../../../../docs/architecture-notes.md?raw";
 import deploy from "../../../../docs/deploy.md?raw";
 import designSystem from "../../../../docs/design-system.md?raw";
 import enAgentDeploy from "../../../../docs/en/agent-deploy.md?raw";
+import enAgentMemory from "../../../../docs/en/agent-memory.md?raw";
 import enDeploy from "../../../../docs/en/deploy.md?raw";
 import enMemosCompatibility from "../../../../docs/en/memos-compatibility.md?raw";
 import enPlugins from "../../../../docs/en/plugins.md?raw";
@@ -186,8 +187,7 @@ const EN_DOCS: Record<
   "agent-memory": {
     title: "Agent Memory",
     group: "agent",
-    body: agentMemory,
-    fallbackFromZh: true,
+    body: enAgentMemory,
   },
   "architecture-notes": {
     title: "FlareMo Architecture",
@@ -281,7 +281,7 @@ const DESCRIPTIONS_EN: Record<string, string> = {
   "agent-ingestion":
     "Designing Agent, Telegram, and IM capture paths and conflict policies. (Chinese source; English translation pending.)",
   "agent-memory":
-    "Long-term AI memory across sessions: six tools, permission tiers, memo links. (Chinese source; English translation pending.)",
+    "Long-term AI memory across sessions: CLI + Skills integration, seven tools, permission tiers, memo links.",
   "architecture-notes":
     "Source of truth, compatibility layer, auth boundary. (Chinese source; English translation pending.)",
   "design-system":

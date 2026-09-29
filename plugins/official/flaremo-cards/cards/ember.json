@@ -3,13 +3,12 @@
   "root": {
     "type": "column",
     "style": {
-      "height": "100%",
+      "minHeight": "100%",
       "background": { "light": "#fdf8f4", "dark": "#1a1614" },
       "color": { "light": "#2c1d16", "dark": "#faefe8" },
       "borderWidth": 1,
       "borderColor": { "light": "#f4e7dd", "dark": "#36261f" },
-      "borderRadius": 8,
-      "overflow": "hidden"
+      "borderRadius": 8
     },
     "children": [
       {
@@ -59,11 +58,9 @@
           "flex": 1,
           "paddingX": 28,
           "marginTop": 20,
-          "clamp": 13,
-          "overflow": "hidden",
           "font": {
             "size": 15,
-            "lineHeight": 1.88
+            "lineHeight": 1.8
           }
         }
       },
@@ -74,7 +71,8 @@
           "justify": "end",
           "align": "center",
           "paddingX": 28,
-          "paddingBottom": 22
+          "paddingBottom": 22,
+          "marginTop": 20
         },
         "children": [
           {

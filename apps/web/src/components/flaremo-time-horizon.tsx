@@ -12,14 +12,9 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  CalendarDaysIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  GridIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
-import { getHourlyActivity, listMemos } from "@/api";
+import { getHourlyActivity, getMemoStats, listMemos } from "@/api";
 import { useI18n } from "@/i18n";
 import {
   addMonths,
@@ -33,6 +28,7 @@ import {
   type WeekStart,
 } from "@/lib/calendar-date";
 import {
+  ACTIVITY_WINDOW_DAYS,
   buildActivityCountMap,
   monthRangeOf,
   parseDayKey,
@@ -62,8 +58,9 @@ export type {
 // ============================================================================
 export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
   stats,
-  streak,
-  monthLabels,
+  streak: _streak,
+  timeZone,
+  space,
   onDaySelect,
   onNavigate,
   hoveredDate,
@@ -75,7 +72,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
   const today = useMemo(() => todayKey(), []);
 
   const [tab, setTab] = useState<TimeHorizonTab>("month");
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("heatmap");
+  const displayMode: DisplayMode = "calendar";
   const [selectedDay, setSelectedDay] = useState<string>(today);
   const [currentMonthKey, setCurrentMonthKey] = useState<string>(
     monthOf(today),
@@ -92,6 +89,31 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
     () => buildActivityCountMap(stats.activity),
     [stats.activity],
   );
+
+  // The shared stats query is anchored to today, so a historical year would
+  // inherit a trailing-366-days slice that covers at most its tail and render
+  // the rest as zeroes (issue #144). The year view asks for the navigated
+  // year's own window (until Dec 31); the counter read behind it scales with
+  // active hours in the range, not memo count, so 2019 costs no more than
+  // today. Falls back to the shared array while it loads.
+  const yearStatsQuery = useQuery({
+    queryKey: ["memo-stats-year", space, timeZone, currentYear],
+    queryFn: ({ signal }) =>
+      getMemoStats(
+        timeZone,
+        space,
+        ACTIVITY_WINDOW_DAYS,
+        `${currentYear}-12-31`,
+        signal,
+      ),
+    enabled: tab === "year",
+    staleTime: 60_000,
+    retry: false,
+  });
+  const yearActivity =
+    tab === "year"
+      ? (yearStatsQuery.data?.activity ?? stats.activity)
+      : stats.activity;
 
   // Hourly query for Day view (24 hours)
   const dayHourlyQuery = useQuery({
@@ -180,7 +202,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
 
   // ── Range Title ────────────────────────────────────────────────────────────
   const rangeTitle = useMemo(() => {
-    if (tab === "year") return `${currentYear}年`;
+    if (tab === "year") return t("explorer.yearTitle", { year: currentYear });
     if (tab === "month") return formatMonthTitle(currentMonthKey, locale);
     if (tab === "week") {
       const first = weekDays[0];
@@ -200,7 +222,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
       weekday: "short",
     });
     return fmt.format(d);
-  }, [tab, currentYear, currentMonthKey, weekDays, selectedDay, locale]);
+  }, [tab, currentYear, currentMonthKey, weekDays, selectedDay, locale, t]);
 
   // ── Navigation ─────────────────────────────────────────────────────────────
   const handlePrev = () => {
@@ -217,27 +239,42 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
     else setSelectedDay((d) => nextDay(d));
   };
 
+  const isAwayFromToday = useMemo(() => {
+    if (tab === "day") return selectedDay !== today;
+    if (tab === "month") return currentMonthKey !== monthOf(today);
+    if (tab === "week") return !weekDays.some((d) => d.key === today);
+    if (tab === "year") return currentYear !== yearOf(today);
+    return false;
+  }, [tab, selectedDay, today, currentMonthKey, weekDays, currentYear]);
+
+  const handleJumpToday = () => {
+    setSelectedDay(today);
+    setCurrentMonthKey(monthOf(today));
+    setCurrentWeekBase(today);
+    setCurrentYear(yearOf(today));
+  };
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      {/* ── Top Bar: 4 Tabs + Mode Toggle ─────────────────────────────────── */}
+      {/* ── Top Bar: 4 Tabs + Quick Today Jump ────────────────────────────── */}
       <div className="flex items-center justify-between px-0.5">
         <div
           aria-label={t("explorer.timeViewLabel")}
-          className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/30 p-0.5"
+          className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-muted/40 p-0.5 dark:border-border/40 dark:bg-muted/30"
           role="tablist"
         >
           {(
             [
-              ["year", "年"],
-              ["month", "月"],
-              ["week", "周"],
-              ["day", "日"],
+              ["year", t("explorer.tab.year")],
+              ["month", t("explorer.tab.month")],
+              ["week", t("explorer.tab.week")],
+              ["day", t("explorer.tab.day")],
             ] as const
           ).map(([id, label]) => (
             <button
               aria-selected={tab === id}
               className={cn(
-                "min-w-[30px] rounded px-2 py-0.5 text-xs font-medium tabular-nums transition-colors",
+                "min-w-[30px] rounded px-2 py-0.5 text-xs font-medium tabular-nums transition-colors cursor-pointer",
                 tab === id
                   ? "bg-background text-foreground shadow-2xs font-semibold"
                   : "text-muted-foreground hover:text-foreground",
@@ -252,53 +289,35 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
           ))}
         </div>
 
-        {/* Dual Mode Switch: Calendar (Information) / Heatmap (Pure Heat) */}
-        <div className="flex items-center rounded-lg border border-border/50 bg-muted/30 p-0.5">
+        {/* Quick Return to Today when navigated away */}
+        {isAwayFromToday ? (
           <button
-            aria-label="数字日历"
-            className={cn(
-              "rounded p-1 text-muted-foreground transition-colors hover:text-foreground",
-              displayMode === "calendar" &&
-                "bg-background text-foreground shadow-2xs",
-            )}
-            title="数字日历 (展示信息)"
+            aria-label={t("explorer.backToToday")}
+            className="rounded-md border border-border/60 bg-background/80 px-2 py-0.5 text-xs font-medium text-foreground/80 shadow-2xs transition-colors hover:border-brand-500/50 hover:bg-background hover:text-brand-600 dark:border-border/40 dark:bg-muted/30 dark:hover:text-brand-400 cursor-pointer"
             type="button"
-            onClick={() => setDisplayMode("calendar")}
+            onClick={handleJumpToday}
           >
-            <CalendarDaysIcon className="size-3.5" />
+            {t("explorer.today")}
           </button>
-          <button
-            aria-label="热力图"
-            className={cn(
-              "rounded p-1 text-muted-foreground transition-colors hover:text-foreground",
-              displayMode === "heatmap" &&
-                "bg-background text-foreground shadow-2xs",
-            )}
-            title="热力图 (纯粹力度)"
-            type="button"
-            onClick={() => setDisplayMode("heatmap")}
-          >
-            <GridIcon className="size-3.5" />
-          </button>
-        </div>
+        ) : null}
       </div>
 
       {/* ── Range Navigator ────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-1">
         <button
-          aria-label="上一期"
-          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t("explorer.previousPeriod")}
+          className="rounded p-1 text-foreground/70 hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           type="button"
           onClick={handlePrev}
         >
           <ChevronLeftIcon className="size-3.5" />
         </button>
-        <span className="text-xs font-medium text-foreground">
+        <span className="text-xs font-semibold text-foreground">
           {rangeTitle}
         </span>
         <button
-          aria-label="下一期"
-          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={t("explorer.nextPeriod")}
+          className="rounded p-1 text-foreground/70 hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           type="button"
           onClick={handleNext}
         >
@@ -308,7 +327,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
 
       {/* ── Unified High-Impact Canvas Container (~240px Tall) ─────────────── */}
       <div
-        className="relative flex min-h-[238px] flex-col justify-center rounded-xl border border-border/60 bg-muted/20 p-2.5 shadow-2xs dark:border-border/40 dark:bg-muted/15 overflow-hidden"
+        className="relative flex min-h-[238px] flex-col justify-center rounded-xl border border-border/70 bg-muted/30 p-2.5 shadow-2xs dark:border-border/50 dark:bg-muted/20 overflow-hidden"
         data-testid="activity-heatmap"
       >
         <div
@@ -327,7 +346,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
           {/* YEAR VIEW: 365 Days across 12 Month Dot Clusters */}
           {tab === "year" && (
             <YearHorizonPureView
-              activity={stats.activity}
+              activity={yearActivity}
               displayMode={displayMode}
               today={today}
               weekStart={weekStart}
@@ -378,6 +397,7 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
               isLoading={dayHourlyQuery.isLoading || dayMemosQuery.isLoading}
               memos={dayMemosQuery.data?.memos ?? []}
               selectedDay={selectedDay}
+              today={today}
               onHoverTip={setHoveredTip}
               onJumpToTimeline={jumpToTimeline}
             />
@@ -385,19 +405,9 @@ export const FlareMoTimeHorizon = memo(function FlareMoTimeHorizon({
         </div>
       </div>
 
-      {/* ── Hidden monthLabels container for E2E Contract Parity ─────────── */}
-      <div aria-hidden="true" className="hidden">
-        {monthLabels.map((m) => (
-          <span key={m.date}>{m.label}</span>
-        ))}
-      </div>
-
-      {/* ── Bottom Single-Line Micro Tooltip ──────────────────────────────── */}
-      <div className="flex h-4 items-center justify-between px-1 text-[11px] text-muted-foreground">
-        <span className="truncate">
-          {hoveredTip ??
-            (streak > 0 ? `${streak} 天连记` : `${today} · 今日就绪`)}
-        </span>
+      {/* ── Bottom Single-Line Micro Tooltip (Hover Details Only) ────────── */}
+      <div className="flex h-4 items-center justify-between px-1 text-[11px] text-muted-foreground select-none">
+        <span className="truncate">{hoveredTip ?? ""}</span>
       </div>
     </div>
   );

@@ -1,7 +1,5 @@
-// ============================================================================
-// 3. Week Horizon View (7 Days x 24 Hours, 168 Pure Squares)
-// ============================================================================
 import { useMemo } from "react";
+import { useI18n } from "@/i18n";
 import { heatmapColor } from "@/lib/activity";
 import { buildWeekSlotCountMap } from "@/lib/time-horizon";
 import { cn } from "@/lib/utils";
@@ -26,16 +24,23 @@ export function WeekHorizonPureView({
   onDrillToDay: (day: string) => void;
   onHoverTip: (tip: string | null) => void;
 }) {
+  const { locale, t } = useI18n();
   const countMap = useMemo(
     () => buildWeekSlotCountMap(hourlyData),
     [hourlyData],
   );
 
   const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
+  // Narrow weekday from Intl, not a hardcoded character table: zh renders
+  // 日/一/二…, en S/M/T…, and every other locale gets its own shape.
+  const weekdayNarrow = useMemo(
+    () => new Intl.DateTimeFormat(locale, { weekday: "narrow" }),
+    [locale],
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* 7 Column Headers on the Top Axis (Weekday + Date) */}
+      {/* 7 Column Headers on the Top Axis (Weekday + Date, 对齐年视图当前月卡片风格) */}
       <div className="flex items-center gap-1">
         {/* Left spacer matching Y axis */}
         <div className="w-4 shrink-0" />
@@ -45,18 +50,17 @@ export function WeekHorizonPureView({
             const dateObj = parseDayKey(d.key);
             const isToday = d.key === today;
             const isSelected = d.key === selectedDay;
-            const weekdayStr = ["日", "一", "二", "三", "四", "五", "六"][
-              dateObj.getDay()
-            ];
+            const weekdayStr = weekdayNarrow.format(dateObj);
 
             return (
               <button
                 className={cn(
-                  "flex flex-col items-center rounded-md py-0.5 transition-colors hover:bg-muted/50",
-                  isSelected && "bg-brand-500 text-white font-bold",
-                  isToday &&
-                    !isSelected &&
-                    "bg-brand-500/15 text-brand-600 dark:text-brand-400 font-bold",
+                  "flex flex-col items-center rounded-lg py-1 px-0.5 transition-all cursor-pointer border",
+                  isSelected
+                    ? "border-brand-500/60 ring-1 ring-brand-500/30 bg-brand-500/10 shadow-2xs"
+                    : isToday
+                      ? "border-brand-500/30 bg-brand-500/[0.04] hover:bg-brand-500/10"
+                      : "border-transparent hover:bg-muted/40 dark:hover:bg-white/[0.04]",
                 )}
                 key={d.key}
                 type="button"
@@ -64,13 +68,36 @@ export function WeekHorizonPureView({
               >
                 {displayMode === "calendar" ? (
                   <>
-                    <span className="text-[10px] opacity-70">{weekdayStr}</span>
-                    <span className="text-xs font-bold leading-tight">
+                    <span
+                      className={cn(
+                        "text-[10px] font-medium leading-none mb-0.5 transition-colors",
+                        isSelected || isToday
+                          ? "text-brand-600 dark:text-brand-400 font-semibold"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {weekdayStr}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs leading-tight transition-colors",
+                        isSelected || isToday
+                          ? "font-bold text-brand-600 dark:text-brand-400"
+                          : "font-semibold text-foreground/85",
+                      )}
+                    >
                       {dateObj.getDate()}
                     </span>
                   </>
                 ) : (
-                  <span className="text-[10px] font-mono opacity-70">
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono font-medium transition-colors",
+                      isSelected || isToday
+                        ? "text-brand-600 dark:text-brand-400 font-bold"
+                        : "text-muted-foreground",
+                    )}
+                  >
                     {weekdayStr}
                   </span>
                 )}
@@ -80,10 +107,10 @@ export function WeekHorizonPureView({
         </div>
       </div>
 
-      {/* 7 Columns x 24 Rows Grid (168 Pure Squares, ZERO TEXT INSIDE) */}
+      {/* 7 Columns x 24 Rows Grid (168 Pure Squares, 100% 对齐年视图微点质感与深浅) */}
       <div className="flex gap-1">
         {/* Left Y-axis hour scale indicators (00, 06, 12, 18, 23) */}
-        <div className="flex w-4 shrink-0 flex-col justify-between py-0.5 text-[8px] font-mono text-muted-foreground/70 select-none">
+        <div className="flex w-4 shrink-0 flex-col justify-between py-0.5 text-[8.5px] font-mono font-medium text-foreground/75 dark:text-foreground/70 select-none">
           <span>00</span>
           <span>06</span>
           <span>12</span>
@@ -101,22 +128,19 @@ export function WeekHorizonPureView({
                   <button
                     className={cn(
                       "h-[7px] w-full rounded-[1.5px] transition-all cursor-pointer active:scale-95",
-                      displayMode === "heatmap"
-                        ? count > 0
-                          ? heatmapColor(count)
-                          : "bg-muted-foreground/15 hover:bg-muted-foreground/30 dark:bg-muted/30 dark:hover:bg-muted/60"
-                        : count > 0
-                          ? "bg-brand-500/70 ring-1 ring-brand-500"
-                          : "bg-muted-foreground/10 hover:bg-muted-foreground/25 dark:bg-muted/20 dark:hover:bg-muted/50",
+                      heatmapColor(count),
+                      count > 0 && "hover:brightness-110",
+                      count <= 0 &&
+                        "hover:bg-muted-foreground/25 dark:hover:bg-muted/45",
                       isLoading && "animate-pulse",
-                      "hover:scale-125 hover:z-10",
+                      "hover:scale-110 hover:z-10",
                     )}
                     key={`${d.key}_${h}`}
                     type="button"
                     onClick={() => onDrillToDay(d.key)}
                     onMouseEnter={() =>
                       onHoverTip(
-                        `${d.key} ${String(h).padStart(2, "0")}:00 · ${count} 条笔记`,
+                        `${d.key} ${String(h).padStart(2, "0")}:00 · ${t("explorer.notesCount", { count })}`,
                       )
                     }
                     onMouseLeave={() => onHoverTip(null)}

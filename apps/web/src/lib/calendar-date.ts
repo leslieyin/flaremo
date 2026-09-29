@@ -31,10 +31,12 @@ export function addDays(fromKey: string, days: number): string {
 }
 
 export function addMonths(months: number, fromKey: string): string {
-  const date = new Date(`${fromKey}T12:00:00`);
+  const isMonthOnly = fromKey.length === 7;
+  const normalized = isMonthOnly ? `${fromKey}-01` : fromKey;
+  const date = new Date(`${normalized}T12:00:00`);
   date.setDate(1);
   date.setMonth(date.getMonth() + months);
-  return isoDay(date);
+  return isMonthOnly ? monthOf(isoDay(date)) : isoDay(date);
 }
 
 export function monthOf(key: string): string {

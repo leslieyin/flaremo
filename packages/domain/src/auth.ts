@@ -299,6 +299,19 @@ export async function getMembershipState(
 }
 
 /**
+ * Whether a resolved membership still grants access. Readers with a past
+ * `expiresAt` fail closed (the seat lapses without a cron sweep); every other
+ * role is open-ended. Shared by the single-query viewer resolution and the
+ * standalone membership lookup so the two can never disagree.
+ */
+function isMembershipActive(role: TeamRole, expiresAt: Date | null): boolean {
+  if (role === "reader" && expiresAt) {
+    return expiresAt.getTime() > Date.now();
+  }
+  return true;
+}
+
+/**
  * Resolve the deployment team membership (role + organization id) for a
  * Better Auth identity in one indexed query. Null when the deployment has no
  * team, the identity is not a member, or the membership is an expired
@@ -315,9 +328,7 @@ export async function getViewerTeamMembership(
 } | null> {
   const state = await getMembershipState(db, authUserId);
   if (!state) return null;
-  if (state.role === "reader" && state.expiresAt) {
-    if (state.expiresAt.getTime() <= Date.now()) return null;
-  }
+  if (!isMembershipActive(state.role, state.expiresAt)) return null;
   return {
     role: state.role,
     organizationId: state.organizationId,
@@ -329,21 +340,52 @@ export async function getFlaremoUserByAuthUserId(
   db: FlareMoDb,
   authUserId: string,
 ): Promise<TeamViewer | null> {
-  const link = await db.query.authUserLinks.findFirst({
-    where: eq(authUserLinks.authUserId, authUserId),
-  });
-  if (!link) return null;
+  // Runs on every authenticated request, so the link, the domain user and the
+  // team membership resolve in one indexed join instead of three serial round
+  // trips. The organization is left-joined by its fixed slug first, then the
+  // membership by (auth user, organization) — a miss on either side leaves the
+  // role null, which is exactly the fail-closed shape the old three-step read
+  // produced for a non-member.
+  const row = await db
+    .select({
+      user: users,
+      role: authMembers.role,
+      expiresAt: authMembers.expiresAt,
+      organizationId: authOrganizations.id,
+      organizationName: authOrganizations.name,
+    })
+    .from(authUserLinks)
+    .innerJoin(users, eq(users.id, authUserLinks.flaremoUserId))
+    .leftJoin(authOrganizations, eq(authOrganizations.slug, DEFAULT_TEAM_SLUG))
+    .leftJoin(
+      authMembers,
+      and(
+        eq(authMembers.userId, authUserLinks.authUserId),
+        eq(authMembers.organizationId, authOrganizations.id),
+      ),
+    )
+    .where(eq(authUserLinks.authUserId, authUserId))
+    .get();
+  if (!row) return null;
 
-  const user = await db.query.users.findFirst({
-    where: eq(users.id, link.flaremoUserId),
-  });
-  if (!user) return null;
+  const role = (row.role ?? null) as TeamRole | null;
+  const membership =
+    role && row.organizationId && row.organizationName
+      ? {
+          role,
+          organizationId: row.organizationId,
+          organizationName: row.organizationName,
+        }
+      : null;
+  const activeMembership =
+    membership && isMembershipActive(membership.role, row.expiresAt ?? null)
+      ? membership
+      : null;
 
-  const membership = await getViewerTeamMembership(db, authUserId);
   return {
-    ...user,
-    teamRole: membership?.role ?? null,
-    teamOrganizationId: membership?.organizationId ?? null,
+    ...row.user,
+    teamRole: activeMembership?.role ?? null,
+    teamOrganizationId: activeMembership?.organizationId ?? null,
   };
 }
 

@@ -27,11 +27,11 @@
 pnpm --filter @flaremo/site build
 ```
 
-确保新 slug 出现在 `src/lib/route-meta.ts` 的 `getDocRoutes()`（中文 15 篇 + 英文 4 篇），以及 `scripts/build.mjs` 的 `getAllPaths()`。英文版仅 4 篇已译文档；其余加 `fallbackFromZh: true` 标志，UI 顶部显示 "English coming soon"。
+确保新 slug 出现在 `src/lib/docs-source.generated.ts`（`?raw` import + `ZH_DOCS`/`EN_DOCS` 条目），以及 `scripts/build.mjs` 顶部的 `DOC_SLUGS`（`getAllPaths()` 按它展开预渲染路径）。英文条目加 `fallbackFromZh: true` 时回退中文正文，详情页顶部显示"翻译待补"提示条（`src/pages/docs-detail-page.tsx`）。
 
 ## SEO
 
-- 每个路由的 SEO（title / description / og / twitter / canonical / hreflang / JSON-LD）在 `src/lib/route-meta.ts` 注册。
+- 每个路由的 SEO meta（title / description / og / twitter / canonical / hreflang / JSON-LD）在 `src/content/static-page-meta.ts` 的 `STATIC_PAGE_META` 注册；`src/ssr-render.tsx` 按 pathname 取 meta 交给 `src/lib/html-shell.ts` 的 `buildSeoForPath`（包装 `src/lib/seo.ts` 的 `buildSeoHead`）生成 `<head>` 内容。
 - `src/lib/html-shell.ts` 的 `renderHtmlShell` 生成完整 `<head>`；`src/ssr-render.tsx` 用 `createMemoryHistory` + `router.load()` + `renderToString` 渲染 body。
 - `scripts/build.mjs` 构建时自动产出 `sitemap.xml` 与 `robots.txt`（后者在 `public/`）。
 

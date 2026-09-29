@@ -64,8 +64,9 @@ export type RichComposerEditorProps = {
     token: { from: number; query: string } | null,
   ) => void;
   /**
-   * Plain Enter submits the note (composer behavior). Turn off for the card
-   * inline editor, where plain Enter keeps editing and Cmd/Ctrl+Enter saves.
+   * When on (composer behavior) Shift+Enter submits the note — Enter is the
+   * paragraph break, Cmd/Ctrl+Enter works as a fallback. Turn off for the card
+   * inline editor, where Enter keeps editing and Cmd/Ctrl+Enter saves.
    */
   submitOnEnter?: boolean;
   /** Escape exits editing (card inline editor). */
@@ -89,7 +90,7 @@ export type RichComposerEditorProps = {
   /** Emitted whenever the editor view undergoes a transaction/selection update. */
   onTransaction?: (editor: Editor) => void;
   /** Emitted when Backspace is pressed at the start of the document (pos 1). */
-  onBackspaceAtStart?: () => boolean | void;
+  onBackspaceAtStart?: () => boolean | undefined;
 };
 
 /**
@@ -208,8 +209,10 @@ export function RichComposerEditor({
           onSubmitRequestRef.current();
           return true;
         }
-        // Plain Enter keeps editing when submitOnEnter is off (card editor).
-        if (submitOnEnter && !event.shiftKey && !caretInListItem(view)) {
+        // Enter keeps editing (the natural paragraph break); Shift+Enter is
+        // the explicit send chord, and Cmd/Ctrl+Enter above still works.
+        // Inside a list item Enter grows the list either way.
+        if (submitOnEnter && event.shiftKey && !caretInListItem(view)) {
           onSubmitRequestRef.current();
           return true;
         }

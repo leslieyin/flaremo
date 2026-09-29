@@ -6,7 +6,7 @@
   html, body { margin: 0; padding: 0; background: transparent; }
   #card {
     width: 340px;
-    height: 420px;
+    min-height: 420px;
     box-sizing: border-box;
     background: #fbf8f1;
     color: #2f2b26;
@@ -59,12 +59,14 @@
     flex: 1;
     margin-top: 16px;
     font-size: 15px;
-    line-height: 1.9;
+    line-height: 1.8;
+    word-break: break-word;
+  }
+  .para {
     white-space: pre-wrap;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 8;
-    -webkit-box-orient: vertical;
+  }
+  .para + .para {
+    margin-top: 8px;
   }
   .foot {
     display: flex;
@@ -73,6 +75,7 @@
     gap: 12px;
     border-top: 1px dashed #d8cfbe;
     padding-top: 12px;
+    margin-top: 24px;
   }
 </style>
 </head>
@@ -122,7 +125,20 @@
     var brand = data.brand || {};
     var ink = options.accent || "#c2410c";
     document.getElementById("date").textContent = data.date || "";
-    document.getElementById("body").textContent = data.body || "";
+    var bodyEl = document.getElementById("body");
+    bodyEl.innerHTML = "";
+    var rawBody = data.body || "";
+    var paras = rawBody.split(/\n\n+/).filter(Boolean);
+    if (paras.length === 0) {
+      bodyEl.textContent = "";
+    } else {
+      for (var p = 0; p < paras.length; p += 1) {
+        var pEl = document.createElement("div");
+        pEl.className = "para";
+        pEl.textContent = paras[p];
+        bodyEl.appendChild(pEl);
+      }
+    }
     document.getElementById("stats").textContent = data.stats || "";
     document.getElementById("brand").textContent = brand.product || "";
     document.getElementById("stamp-text").textContent =

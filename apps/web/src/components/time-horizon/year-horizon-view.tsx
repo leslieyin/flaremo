@@ -3,11 +3,12 @@
 // ============================================================================
 import { useMemo } from "react";
 import type { MemoStatsResponse } from "@/api";
+import { useI18n } from "@/i18n";
 import { heatmapColor } from "@/lib/activity";
 import type { WeekStart } from "@/lib/calendar-date";
 import { buildActivityCountMap } from "@/lib/time-horizon";
 import { cn } from "@/lib/utils";
-import { type DisplayMode, MONTH_SHORT_NAMES } from "./shared";
+import type { DisplayMode } from "./shared";
 
 export function YearHorizonPureView({
   year,
@@ -26,6 +27,13 @@ export function YearHorizonPureView({
   onDrillToMonth: (monthKey: string) => void;
   onHoverTip: (tip: string | null) => void;
 }) {
+  const { locale, t } = useI18n();
+  // Month names come from Intl rather than a translated table, so every locale
+  // (and every future one) is correct without a catalog entry per month.
+  const monthShort = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: "short" }),
+    [locale],
+  );
   const countMap = useMemo(() => buildActivityCountMap(activity), [activity]);
 
   // Build 12 calendar arrays for each month
@@ -61,13 +69,13 @@ export function YearHorizonPureView({
       return {
         monthIndex: m,
         monthKey,
-        label: MONTH_SHORT_NAMES[m],
+        label: monthShort.format(new Date(year, m, 1)),
         total: monthTotal,
         activeDays: monthActiveDays,
         cells,
       };
     });
-  }, [year, weekStart, countMap]);
+  }, [year, weekStart, countMap, monthShort]);
 
   return (
     <div className="grid grid-cols-3 gap-x-2.5 gap-y-2 py-0.5">
@@ -85,8 +93,9 @@ export function YearHorizonPureView({
                       "border-brand-500/60 ring-1 ring-brand-500/30 bg-brand-500/[0.03] dark:bg-brand-500/10",
                   )
                 : cn(
-                    "border-border/60 bg-background/60 hover:border-brand-500/50 hover:bg-background dark:border-border/30 dark:bg-background/40 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/5",
-                    isCurrentMonth && "border-brand-500 bg-brand-500/10",
+                    "border-border/70 bg-card/75 hover:border-brand-500/50 hover:bg-card dark:border-border/40 dark:bg-card/45 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/5",
+                    isCurrentMonth &&
+                      "border-brand-500 bg-brand-500/10 ring-1 ring-brand-500/30",
                   ),
             )}
             key={m.monthKey}
@@ -94,7 +103,12 @@ export function YearHorizonPureView({
             onClick={() => onDrillToMonth(m.monthKey)}
             onMouseEnter={() =>
               onHoverTip(
-                `${year}年${m.label} · ${m.total} 条笔记 (${m.activeDays} 活跃天)`,
+                t("explorer.yearMonthSummary", {
+                  year,
+                  month: m.label,
+                  count: m.total,
+                  days: m.activeDays,
+                }),
               )
             }
             onMouseLeave={() => onHoverTip(null)}
@@ -102,7 +116,7 @@ export function YearHorizonPureView({
             {/* Top axis: ONLY in Calendar mode! In Heatmap mode, strictly NO TEXT! */}
             {displayMode === "calendar" ? (
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] font-mono font-medium text-muted-foreground">
+                <span className="text-[10px] font-mono font-medium text-foreground/80 dark:text-foreground/75">
                   {m.label}
                 </span>
                 {m.total > 0 && (

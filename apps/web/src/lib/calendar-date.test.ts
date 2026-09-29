@@ -68,6 +68,15 @@ describe("addMonths", () => {
     expect(monthOf(addMonths(-1, "2026-03-31"))).toBe("2026-02");
     expect(monthOf(addMonths(12, "2026-09-02"))).toBe("2027-09");
   });
+
+  it("navigates forward and backward with monthKey (YYYY-MM) without NaN", () => {
+    expect(addMonths(1, "2026-09")).toBe("2026-10");
+    expect(addMonths(-1, "2026-09")).toBe("2026-08");
+    expect(addMonths(12, "2026-09")).toBe("2027-09");
+    expect(addMonths(-12, "2026-09")).toBe("2025-09");
+    expect(addMonths(1, "2026-12")).toBe("2027-01");
+    expect(addMonths(-1, "2026-01")).toBe("2025-12");
+  });
 });
 
 describe("buildMonthGrid", () => {

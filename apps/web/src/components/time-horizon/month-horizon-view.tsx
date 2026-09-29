@@ -2,7 +2,7 @@
 // 2. Month Horizon View (Seamless Full-Tile Calendar Heatmap Carpet)
 // ============================================================================
 import { useMemo } from "react";
-import { heatmapColor } from "@/lib/activity";
+import { useI18n } from "@/i18n";
 import {
   buildMonthGrid,
   type WeekStart,
@@ -43,8 +43,9 @@ export function MonthHorizonPureView({
   onHoverDate?: (day: string | null) => void;
   onHoverTip: (tip: string | null) => void;
 }) {
+  const { t } = useI18n();
   const grid = useMemo(
-    () => buildMonthGrid(monthKey, weekStart),
+    () => buildMonthGrid(monthKey, weekStart, true),
     [monthKey, weekStart],
   );
   const headers = weekdayHeaders(weekStart, locale, "narrow");
@@ -65,8 +66,8 @@ export function MonthHorizonPureView({
               className={cn(
                 "text-center text-[10px] font-medium font-mono transition-opacity",
                 displayMode === "calendar"
-                  ? "text-muted-foreground/75"
-                  : "text-muted-foreground/45",
+                  ? "text-foreground/75 dark:text-foreground/70 font-semibold"
+                  : "text-foreground/60 dark:text-foreground/50",
               )}
               key={colId}
             >
@@ -79,37 +80,48 @@ export function MonthHorizonPureView({
       {/* Grid of Days: 7 Columns x 5~6 Rows of Solid, Cohesive Tiles */}
       <div className="grid grid-cols-7 gap-1">
         {grid.map((cell) => {
+          if (!cell.inMonth) {
+            return (
+              <div
+                aria-hidden="true"
+                className="h-8.5 w-full rounded-[5px] border border-dashed border-border/20 bg-muted/10 opacity-30 pointer-events-none"
+                key={cell.key}
+              />
+            );
+          }
+
           const totalCount = notesCountMap.get(cell.key) ?? 0;
           const isToday = cell.key === today;
           const isSelected = cell.key === selectedDay;
           const dayNum = Number(cell.key.slice(8));
           const [q0, q1, q2, q3] = dayQuadrants.get(cell.key) ?? [0, 0, 0, 0];
 
+          // ── 100% 对齐年视图：统一采用相同的质感与深浅阶梯 ──
+          const activityStyle =
+            totalCount <= 0
+              ? "border-transparent bg-muted-foreground/15 dark:bg-muted/30 text-foreground/75 dark:text-foreground/70 hover:bg-muted-foreground/25 dark:hover:bg-muted/45"
+              : totalCount === 1
+                ? "border-primary/20 bg-primary/35 dark:border-primary/30 dark:bg-primary/30 text-brand-900 dark:text-white font-semibold shadow-2xs hover:bg-primary/45"
+                : totalCount === 2
+                  ? "border-primary/30 bg-primary/55 dark:border-primary/40 dark:bg-primary/50 text-brand-950 dark:text-white font-bold shadow-2xs hover:bg-primary/65"
+                  : totalCount <= 4
+                    ? "border-primary/50 bg-primary/75 dark:border-primary/60 dark:bg-primary/75 text-white font-bold shadow-xs hover:bg-primary/85"
+                    : "border-primary bg-primary text-white dark:border-primary dark:bg-primary font-bold shadow-sm hover:brightness-110";
+
           return (
             <button
               className={cn(
                 "group relative flex h-8.5 w-full items-center justify-center rounded-[5px] border transition-all select-none cursor-pointer active:scale-95",
-                cell.inMonth ? "opacity-100" : "opacity-15 pointer-events-none",
-                displayMode === "heatmap"
-                  ? totalCount > 0
-                    ? cn(
-                        heatmapColor(totalCount),
-                        "border-primary/25 hover:brightness-105 shadow-2xs",
-                      )
-                    : "border-border/40 bg-muted-foreground/10 hover:border-border/60 hover:bg-muted-foreground/15 dark:border-border/20 dark:bg-muted/20 dark:hover:bg-muted/30"
-                  : cn(
-                      "border-border/50 bg-background/60 hover:border-brand-500/50 hover:bg-background dark:border-border/30 dark:bg-background/50 text-foreground",
-                      totalCount > 0 &&
-                        "border-brand-500/40 bg-brand-500/10 font-bold text-brand-600 dark:text-brand-400",
-                    ),
-                isToday &&
-                  "border-brand-500 ring-2 ring-brand-500/50 scale-[1.03] z-10",
+                activityStyle,
+                // ── 对齐年视图选中卡片：柔和品牌色微环与微气泡底色 ──
                 isSelected &&
-                  !isToday &&
-                  "ring-2 ring-foreground/60 scale-105 z-10 shadow-xs",
-                hoveredDate === cell.key &&
-                  "ring-1 ring-brand-500/70 scale-105",
-                "hover:scale-105 hover:z-10",
+                  "border-brand-500/70 ring-1.5 ring-brand-500/35 bg-brand-500/15 dark:bg-brand-500/25 z-20 scale-[1.02] shadow-2xs",
+                // ── 今日未选中时的柔和轮廓 ──
+                !isSelected &&
+                  isToday &&
+                  "border-brand-500/40 ring-1 ring-brand-500/20 shadow-2xs font-bold",
+                hoveredDate === cell.key && !isSelected && "scale-105 z-10",
+                !isSelected && "hover:scale-105 hover:z-10",
               )}
               key={cell.key}
               type="button"
@@ -118,10 +130,16 @@ export function MonthHorizonPureView({
                 onHoverDate?.(cell.key);
                 if (totalCount > 0) {
                   onHoverTip(
-                    `${cell.key} · ${totalCount} 条笔记 (早:${q1} 午:${q2} 晚:${q3} 夜:${q0})`,
+                    `${cell.key} · ${t("explorer.dayBreakdown", {
+                      count: totalCount,
+                      q0,
+                      q1,
+                      q2,
+                      q3,
+                    })}`,
                   );
                 } else {
-                  onHoverTip(`${cell.key} · 无记录`);
+                  onHoverTip(`${cell.key} · ${t("explorer.noRecords")}`);
                 }
               }}
               onMouseLeave={() => {
@@ -129,26 +147,36 @@ export function MonthHorizonPureView({
                 onHoverTip(null);
               }}
             >
-              {/* Calendar Mode: Crisp Day Number & Count Indicator */}
+              {/* Calendar Mode: 日期数字始终 100% 绝对水平垂直居中，不放任何跳动数字 */}
               {displayMode === "calendar" ? (
-                <div className="flex flex-col items-center justify-center leading-none transition-opacity group-hover:opacity-0">
-                  <span
-                    className={cn(
-                      "text-[11px] font-mono tabular-nums",
-                      totalCount > 0
-                        ? "font-bold text-brand-600 dark:text-brand-400"
-                        : "text-foreground/80",
-                    )}
-                  >
-                    {dayNum}
-                  </span>
-                  {totalCount > 1 && (
-                    <span className="mt-0.5 text-[8px] font-mono font-medium text-brand-500/70 tabular-nums">
-                      {totalCount}
-                    </span>
+                <span
+                  className={cn(
+                    "text-[12px] font-mono tabular-nums leading-none transition-opacity group-hover:opacity-0",
+                    totalCount >= 3
+                      ? "text-white font-bold drop-shadow-2xs"
+                      : totalCount === 2
+                        ? "text-brand-950 dark:text-white font-bold"
+                        : totalCount === 1
+                          ? "text-brand-800 dark:text-brand-200 font-semibold"
+                          : "text-foreground/85 font-medium",
                   )}
-                </div>
+                >
+                  {dayNum}
+                </span>
               ) : null}
+
+              {/* 今日专属指示微点（Today Micro-Dot, 绝不形成下划线错觉） */}
+              {isToday && (
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "absolute bottom-1 left-1/2 -translate-x-1/2 size-1 rounded-full transition-colors",
+                    totalCount >= 3
+                      ? "bg-white/80"
+                      : "bg-foreground/50 dark:bg-foreground/60",
+                  )}
+                />
+              )}
 
               {/* Hover Stacked Micro-Stripes: Previews the single vertical column of Day view! */}
               <div className="absolute inset-0 flex flex-col justify-center gap-[1.5px] p-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-background/95 dark:bg-background/95 rounded-[4px] shadow-xs pointer-events-none">
@@ -159,7 +187,7 @@ export function MonthHorizonPureView({
                       ? "bg-primary"
                       : "bg-muted-foreground/20 dark:bg-muted/40",
                   )}
-                  title="夜间 (00-06)"
+                  title={t("explorer.periodNight")}
                 />
                 <div
                   className={cn(
@@ -168,7 +196,7 @@ export function MonthHorizonPureView({
                       ? "bg-primary"
                       : "bg-muted-foreground/20 dark:bg-muted/40",
                   )}
-                  title="早晨 (06-12)"
+                  title={t("explorer.periodMorning")}
                 />
                 <div
                   className={cn(
@@ -177,7 +205,7 @@ export function MonthHorizonPureView({
                       ? "bg-primary"
                       : "bg-muted-foreground/20 dark:bg-muted/40",
                   )}
-                  title="下午 (12-18)"
+                  title={t("explorer.periodAfternoon")}
                 />
                 <div
                   className={cn(
@@ -186,7 +214,7 @@ export function MonthHorizonPureView({
                       ? "bg-primary"
                       : "bg-muted-foreground/20 dark:bg-muted/40",
                   )}
-                  title="晚间 (18-24)"
+                  title={t("explorer.periodEvening")}
                 />
               </div>
             </button>

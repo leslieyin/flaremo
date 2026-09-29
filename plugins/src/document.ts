@@ -69,6 +69,7 @@ export type DocumentStyle = {
   gap?: number;
   width?: number | string;
   height?: number | string;
+  minHeight?: number | string;
   /** Flex grow/shrink weight inside a row/column. */
   flex?: number;
   align?: "start" | "center" | "end" | "stretch" | "baseline";

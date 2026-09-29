@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import Markdown from "react-markdown";
+import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "@/i18n";
 import { createSlugger } from "@/lib/markdown-outline";
@@ -312,7 +313,7 @@ export const MemoContent = memo(function MemoContent({
           },
         }}
         rehypePlugins={rehypePlugins}
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         skipHtml
       >
         {body}

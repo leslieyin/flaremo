@@ -8,8 +8,11 @@ import {
 } from "@flaremo/domain";
 import { zValidator } from "@hono/zod-validator";
 import type { Hono } from "hono";
-import { createFlareMoAuth } from "../../auth";
-import type { getBrowserRequestContext, HonoBindings } from "../../context";
+import {
+  type getBrowserRequestContext,
+  type HonoBindings,
+  loadAuthFactory,
+} from "../../context";
 import { jsonError } from "../../http";
 import {
   createUserSchema,
@@ -40,6 +43,7 @@ export async function createMemberAccount(
   // Check before Better Auth creates an identity so quota failures cannot
   // leave an orphaned login account.
   await assertMemberQuota(context.db, context.limits);
+  const { createFlareMoAuth } = await loadAuthFactory();
   const auth = createFlareMoAuth(c.env, context.db, {
     allowBootstrapSignUp: true,
   });
@@ -114,7 +118,7 @@ export function registerUsersRoutes(app: Hono<HonoBindings>) {
       return c.json(
         {
           id: member.id,
-          email: input.email,
+          email: member.email,
           name: member.name,
           username,
           role: "member" as const,

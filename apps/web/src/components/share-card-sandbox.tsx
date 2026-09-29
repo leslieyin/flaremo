@@ -49,8 +49,8 @@ const BRIDGE_SCRIPT = `(function () {
   function capture(scale, target) {
     return new Promise(function (resolve, reject) {
       try {
-        var width = target.offsetWidth || target.scrollWidth;
-        var height = target.offsetHeight || target.scrollHeight;
+        var width = Math.ceil(target.offsetWidth || target.scrollWidth || 0);
+        var height = Math.ceil(target.scrollHeight || target.offsetHeight || 0);
         if (!width || !height) { reject(new Error("empty capture target")); return; }
         var clone = target.cloneNode(true);
         var srcNodes = [target].concat(Array.prototype.slice.call(target.querySelectorAll("*")));
@@ -108,13 +108,25 @@ const BRIDGE_SCRIPT = `(function () {
       } catch (err) {
         post({ type: "error", message: String((err && err.message) || err) });
       }
+      var reportSize = function () {
+        var target = window.__flaremoCaptureTarget || document.body;
+        var h = Math.ceil(target.scrollHeight || target.offsetHeight || 0);
+        if (h) {
+          post({ type: "resize", height: h });
+        }
+      };
       if (msg.type === "init") {
-        var announce = function () { post({ type: "ready" }); };
+        var announce = function () {
+          reportSize();
+          post({ type: "ready" });
+        };
         if (document.fonts && document.fonts.ready) {
           document.fonts.ready.then(function () { setTimeout(announce, 0); }, announce);
         } else {
           setTimeout(announce, 0);
         }
+      } else {
+        setTimeout(reportSize, 0);
       }
     }
     if (msg.type === "export") {
@@ -190,6 +202,7 @@ export const ShareCardSandboxHost = forwardRef<ShareCardSandboxHandle, Props>(
     >(null);
     const requestIdRef = useRef(0);
     const [ready, setReady] = useState(false);
+    const [contentHeight, setContentHeight] = useState<number | null>(null);
     const locale = payload.data.locale;
     const srcdoc = useMemo(
       () => buildSandboxSrcdoc(html, locale),
@@ -225,13 +238,17 @@ export const ShareCardSandboxHost = forwardRef<ShareCardSandboxHandle, Props>(
           png?: string;
           requestId?: number;
           message?: string;
+          height?: number;
         } | null;
-        if (!message || message.__flaremo !== 1) return;
+        if (message?.__flaremo !== 1) return;
         if (message.type === "ready" && !readyRef.current) {
           readyRef.current = true;
           window.clearTimeout(timeout);
           setReady(true);
           onReadyChangeRef.current?.(true);
+        }
+        if (message.type === "resize" && typeof message.height === "number") {
+          setContentHeight(message.height);
         }
         if (message.type === "exported" || message.type === "export-error") {
           const resolve = exportResolver.current;
@@ -327,7 +344,10 @@ export const ShareCardSandboxHost = forwardRef<ShareCardSandboxHandle, Props>(
         ref={iframeRef}
         sandbox="allow-scripts"
         srcDoc={srcdoc}
-        style={{ width, height }}
+        style={{
+          width,
+          height: contentHeight ? Math.max(height, contentHeight) : height,
+        }}
         title="Share card plugin"
       />
     );

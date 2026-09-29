@@ -2,6 +2,136 @@
 
 FlareMo 使用 SemVer。每个 release 都要写清楚升级影响、Cloudflare 资源变化和 Memos 兼容面变化。
 
+## v0.22.0
+
+团队项目工作台版本：新增团队项目视图（外部贡献合并），并完成一轮安全审计、全量 E2E 修复与工程卫生清理。**无 migration、无新增 Cloudflare 资源、无 API 破坏性变化。**
+
+### 新增与改进
+
+- **团队项目工作台**（`/team-projects`，外部贡献 PR #148）：集中查看项目、负责人、状态、当前进展、下一步与跟进日期，并可进入详情维护概况、记录进展/会议结论、上传与查看资料。项目仍是团队 memo，通过正文里的 ```kosx-pm 元数据块（协议 `kosx.pm/1`）识别；只有含有效元数据块的记录进入项目列表，普通笔记不受影响。团队/我的项目筛选只改变展示、不构成权限隔离；个人任务看板 `/projects` 原样保留。
+- 团队项目完整文案提供中文与英文两套；其余语言使用英文文案。
+
+### 安全审计
+
+对本次发布范围（含新合并的外部贡献）做了完整审计，结论与处置：
+
+- **依赖**：`pnpm audit` 无已知漏洞；供应链策略（`minimumReleaseAge`、构建脚本白名单、overrides 钉版本）校验通过。
+- **新贡献的代码**：无 DOM XSS sink（无 `dangerouslySetInnerHTML`/`innerHTML`/`eval`/`new Function`）；元数据块解析全程 fail-closed（非法 JSON、重复块、未闭合块均降级为错误提示，不误解析）；所有跳转均为内部路径且经 `validListUrl` 校验，无开放重定向；引用的外链经 `http/https` 协议白名单校验；不存在可触达的原型污染（仅保留 `__proto__`/`constructor` 作为普通键，无递归合并）；**未新增任何后端端点、表、migration 或权限模型**，读写全部经由既有的、由服务端重新鉴权的 API。
+- **凭据卫生**：本次范围内无密钥泄漏，`.dev.vars` 与 `wrangler.jsonc` 均未被 git 跟踪。
+- **已修**：英文文案 23 处以 `":s"` 结尾的错字（所有英文标签与错误提示此前显示为 `Owner:s`、`Save failed:s`），成因是目录构造处的 `replace(/\\s/g, " ")` 在模板字符串里匹配的是字面反斜杠而非空白符。
+
+**需要维护者决策的既有行为（非本次引入，未改动）**：`canEditMemo` 是「仅作者」，不含角色谓词，因此一名曾被设为成员、发表过团队笔记、之后被降级为读者的账号，仍可编辑自己既有的团队笔记内容（读者被明确拒绝的是**新建/重新发布**，即 `canPublishTeamMemo`）。这是作者本位权限模型的固有性质，改动会波及 Web/API/MCP/兼容面四个入口，故留待明确决策，不在本版静默变更。
+
+### 修复
+
+- 团队项目路由的 `validateSearch` 不再把 `edit=false` 写进 URL（此前每次访问都会被序列化，导致鉴权守卫捕获的跳转目标与实际落地地址不一致）。
+- 团队项目英文文案的 `":s"` 错字（见上）。
+- 删除时间轴组件里为旧 E2E 契约保留的隐藏 `monthLabels` 容器及其已失效的 prop 链路——纯死代码，唯一消费者是一个已失效的断言。
+
+### 工程卫生
+
+- 清理 24 条既有 biome 告警（未使用导入/变量、可选链、非空断言），全为语义等价的机械修正；仓库告警从 44 降至 20，剩余的均为移植 CSS 的 `noDescendingSpecificity`（样式组织建议、非错误，已按视觉验收，重排有回归风险故保留）。
+- **全量 E2E 达到 75/75 全绿**。此前长期有 1–2 个用例在整轮里必挂、单独跑却通过，逐个查明都是共享浏览器 profile 的持久状态串味，而非产品缺陷：
+  - workspace 布局统一改版后，多份 spec 仍指向旧 UI（内联搜索已迁至 ⌘K spotlight 弹窗、设置面板按断点挂载两份、语音设置改为「状态行 + 配置弹窗」、记忆页改为内联快速输入器、`/capture` 并入统一工作区）。
+  - 新增 `startWithCleanClientState` 测试助手，统一清理 composer 发送目标偏好（`localStorage`）、标签折叠、PWA 提示，并清空 IndexedDB 的草稿与提交队列。发送目标是 per-space 记忆的：前一个用例把个人空间记成 private 后，团队空间里本该 protected 的新记录会被正确地填成个人，于是「它出现在团队时间线」的断言失败——产品行为正确，是测试互相污染。
+  - 清理 IndexedDB 一律「清空 object store」而非 `deleteDatabase`：删除在应用持有连接时会被阻塞并落到用例中途，把刚写好的草稿一起删掉；且对不存在的库调用 `open` 会创建空库，使应用自身的 `open` 跳过 `onupgradeneeded`。
+  - 另修掉两处测试自身缺陷：共享页 `preload="none"` 音频的断言与模板设计相悖（访客按下播放前浏览器不取媒体，duration 恒为空）、记忆编辑用例未限定卡片的 `.first()` 会打开别人的菜单。
+
+### Memos 兼容面变化
+
+- 无变化。
+
+### 数据库 migration
+
+- 无。
+
+### Cloudflare 资源变化
+
+- 无新增或改名。部署前无需手动操作。
+
+### Better Auth 应用认证变化
+
+- 无。cookie session、bootstrap、注册开关、PAT 前缀与撤销行为、`FLAREMO_PUBLIC_URL` / `FLAREMO_TRUSTED_ORIGINS` 与各 secret 的配置要求均不变。
+
+### 升级步骤
+
+1. 直接部署即可（无 migration、无资源变化）。
+2. 部署后 `/team-projects` 立即可用；既有的 `/projects` 个人任务看板不受影响。
+
+### 已知问题
+
+- 团队项目工作台目前只有中英文文案，其余语言回落到英文。
+- 项目记录的原始协议元数据在普通 memo 视图中可见（记录本身仍是团队 memo）。
+- 工作台使用内置的精简 fetch 层而非共享 API client，因此不会在 401 时触发全局「需重新登录」事件，而是就地显示未登录状态；服务端仍会对每个请求独立鉴权。
+- 上述「降级为读者后仍可编辑自己既有团队笔记」的权限边界待决策。
+- 兼容面仍未覆盖完整 CEL、完整上游 webhook 事件/egress 语义、完整多用户 ACL、原生 JWT parity，第三方客户端 smoke test 仍未完成。
+
+## v0.21.0
+
+记忆账本与启动性能版本：Harness 适配落地（ZCode / Codex / Antigravity 插件 + 本地核心 + 原生记忆搬家）、记忆账本 v2 领域层与审核减负、Horizon 天文表盘、Workspace 统一布局，以及一轮幅度很大的 Worker 启动图瘦身。**这是自 v0.20.1 以来的 81 个提交的合并发布，含 4 个新 migration（纯新增 + 回填，向后兼容）。**
+
+### 新增与改进
+
+- **记忆账本 v2**：事实键版本断代、证据链、双时态与混合召回；接入层与 CLI（裁决/复原/版本链端点、`memory_compile` 工具、退出码契约）；v2.4 审核减负（AI 提炼默认直接生效、一眼扫替代逐条裁决、seed 直生效）；键槽口径对齐唯一索引，提案不占位、不被误退位。
+- **Harness 适配（P0 替换式）**：ZCode / Codex / Antigravity 插件、本地核心与原生记忆搬家，另含 Pi Agent 进程内扩展；导入遇瞬时不可达会退避重试。
+- **Web**：独立子页收敛为持久 Workspace 布局；记忆项目面板、FilterPill 与设计系统对齐；Horizon 天文表盘（12 小时表盘、月/周/年视图深度对齐、卫星光子）。
+- **导出走 Queue**：绑定 `flaremo-data-export` 后 `POST /api/v1/export/tasks` 投递 `{taskId}` 并立即返回 queued，由 queue 消费端与 scheduled maintenance 共用的同一幂等 executor 执行导出；未绑定 Queue 的部署维持请求内执行不变。cron 兜底（stale 任务过期标记 + 过期产物清理）语义不变。
+
+### 性能
+
+- **Worker 启动图**：静态可达模块 1229 → 488、源码 5.87 → 2.54 MiB（约 -57%）。移出启动图的有 Better Auth 全簇、kysely、@noble、jose、@bufbuild（Connect protobuf）、cel-js、transliteration、fflate、shiki，以及 articles / SSR 公开页 / MCP / 采集四块路由树的入口态惰性化。可用 `pnpm startup-graph` 持续度量。
+- **D1 读放大**：新增按「作者 + UTC 小时 + 当前 status」分桶的聚合表 `memo_hourly_counts`，`stats` 的 `counts` / `active_days` / `activity` 三项与写入路径的 memo 配额检查不再扫 `memos` 全表；成本从「随 memo 总数增长」变为「随实际有活动的 UTC 小时数增长」。`tags` 字段与带 space 分区的查询仍是实时扫表（见 `docs/deploy.md` 的覆盖范围表）。
+- **其他**：记忆分页与批量水合、认证单查、import 与 webhook 串行往返收拢为 `inArray` + `db.batch`、前端首屏减重（ShareImageDialog / 插件 payload 懒加载 + i18n 按需语言包）。
+
+### 修复
+
+- **重复邮箱身份修复（`/api/app/*`）**：添加成员、修改邮箱使用一个已被占用的地址时，此前会落到 `users` / `auth_users` 唯一索引的裸驱动错误上，返回 500 `Internal server error`——真实原因只在日志里。现在由 domain 层统一判定为 409 `That email is already in use.`，前端映射为本地化文案；邮箱在写入 domain 表时归一化为小写并做大小写不敏感占用比较，堵掉「大小写变体绕过字节唯一索引、进而留下一条无团队归属的孤儿成员记录」的路径。`jsonError` 同时收口：保留框架异常（Better Auth 等）自带的 4xx 与其可读文案，不再一律压成 500（仅 4xx 生效，5xx 与无状态错误仍返回泛化文案，避免内部细节外泄）。**状态码变更**：修改邮箱撞已占用地址从 400 改为 409（`/api/app/*` 自有面，仅前端消费）。
+- **聚合表一致性**：评论创建与成员移除此前会写坏 `memo_hourly_counts`；聚合表重算会撞穿 D1 的 100 绑定参数上限，导致夜间校准从未真正生效——两者均已修复。
+- **Memos 兼容面错误处理收口**：`/api/v1` current REST 与 social 树的 `{code, message, details}` 错误信封合并为单份实现；`CompatValidationError` 与非法 JSON body 现在正确映射 400（此前会落 500）。
+- **评论创建的 memo 配额检查此前从未生效**；编辑 memo 时从新内容重新提取标签；年视图按导航年份锚定活动窗口、热力图年视图请求 366 天窗口；跳年笔记的绝对时间补上年份。
+- **Web**：服务端拒绝退出时不再假装已退出；403 不再误报「登录状态已失效」，Origin 不受信时给出明确提示；侧栏跳时间线补全 search 参数；窗口聚焦时的全量重拉导致的列表重放动画已停止（全局 staleTime 30s + 关闭 refetchOnWindowFocus）。
+- **分享卡**：长文本自适应高度、段落间距收紧、容器不再溢出裁切；视频内联播放的 403 已修（video.twimg.com 按 Referer 白名单防盗链）。
+- **备份/恢复**：`memo_hourly_counts` 此前未登记持久化清单，导致恢复演练既不覆盖也不校验它——现已归类为可重建表，并在恢复时从 `memos` 直接重算（不重放陈旧计数）。恢复清单另补记忆账本三张新表。恢复脚本的 R2 bucket 校验改为从 `wrangler.jsonc` 读取绑定名（此前硬编码 `flaremo-attachments`，任何自定义 bucket 名的部署都会卡在发布门禁上）。
+
+### Memos 兼容面变化
+
+- current REST 与 social 树的错误信封合并为单份实现；非法 JSON body 与 `CompatValidationError` 由 500 归位 400。
+- Connect 与 current 面的注册路径同样受重复邮箱修复影响（域层统一判定）。
+- 兼容子集范围未扩大：仍不主张完整 Memos Server parity。
+
+### 数据库 migration
+
+- `0030_memory_ledger_v2`：新增 `memory_evidence`、`memory_events`、`memory_rejections` 三表 + `memory_items` 的 `(user_id, scope_type, scope_key, fact_key)` 索引。
+- `0031_memory_ledger_followup`：新增 `memory_compile_archives`；删除 `memory_items_user_fingerprint_idx`（已被 0030 的复合索引取代）。
+- `0032_omniscient_energizer`：新增两个部分索引（推理待审扫描、向量回收扫描）。
+- `0033_large_multiple_man`：新增 `memo_hourly_counts` 聚合并从 `memos` 回填（用 `strftime` 打 ISO 时间戳，避免被下一次校准误判为陈旧墓碑而删除）。
+- 全部为**纯新增 + 回填**，向后兼容上一正式版本的 Worker；自动部署会先迁移再发布。
+
+### Cloudflare 资源变化
+
+- 可选新增 Queue：`flaremo-data-export`（binding `DATA_EXPORT_QUEUE`）。不绑定则该能力维持旧的请求内执行，无需强制创建。
+- `wrangler.jsonc.example` 的 `assets.run_worker_first` 补齐 worker 渲染路径（`/article/*`、`/share/*`、`/feed.xml`、`/sitemap.xml`、`/sitemap-articles.xml`、`/favicon.ico`）。**自托管升级需同步自己的 `wrangler.jsonc`**，否则这些路径会落回 SPA fallback。
+- 无 R2 / D1 / Vectorize 资源的新增或改名。
+
+### Better Auth 应用认证变化
+
+- 无 cookie session、bootstrap、注册开关、PAT 前缀或撤销行为的变化。
+- 新增的重复邮箱判定改变了「修改邮箱撞已占用地址」的状态码（400 → 409）与「添加成员撞已占用邮箱」的响应（500 → 409），均为 `/api/app/*` 自有面。
+- `FLAREMO_PUBLIC_URL`、`FLAREMO_TRUSTED_ORIGINS` 与各 secret 的配置要求不变。
+
+### 升级步骤
+
+1. 备份 D1 与 R2（认证表在恢复清单内）。
+2. 同步自己的 `wrangler.jsonc`：补 `run_worker_first` 路径；如需队列导出能力，创建 `flaremo-data-export` 并加 `DATA_EXPORT_QUEUE` 绑定。
+3. 部署（自动先应用 migration 再发布 Worker）。
+4. 升级后无需手动操作：聚合表已在迁移里回填，夜间校准会继续自愈。
+
+### 已知问题
+
+- `tags` 字段与带 space 分区的 stats 查询仍是实时扫表；D1 免费套餐下高频调用 `/api/app/stats` 仍可能触顶每日行数预算（估算方法与量级换算见 `docs/deploy.md`）。
+- 仓库内仍有 44 条 biome warning（未使用导入/变量、可选链风格、非空断言等），非门禁项，不影响发布。
+- 兼容面仍未覆盖完整 CEL、完整上游 webhook 事件/egress 语义、完整多用户 ACL、原生 JWT parity，第三方客户端 smoke test 仍未完成。
+
 ## v0.20.1
 
 稳健性收口版本：修复工作区乐观更新的一处缓存键读取错位——乐观插入与乐观更新此前按错误的槽位解析时间线缓存键，主时间线的新记录只能等服务端失效后才出现，回收站/归档视图里的更新会把卡片短暂闪没；现在按真实键形（space/view/query/tag/untagged）逐槽读取并按可见性判定落位（私有记录不再被乐观插进团队时间线）。/calendar 日历页正式下线：任务管理收敛至 /projects（看板/截止日期/逾期提醒），逾期推送、通知铃、任务搜索、PWA 快捷方式全部改指 /projects，文案统一为「任务」；探索页只读小月历与逾期提醒保留；后端 `/api/app/calendar` 聚合端点保留（Memos 兼容面零变化）。地基清理：删除日历下线后的 8 语言死键（46 键/语言）、前端孤儿 `getCalendarView`、SPA 白名单死表项；README 与 PRD 的日历段落改写/补注记；长文件按职责再拆（worker 装配入口、import/export、管理端用户卡），函数体逐字搬移、消费方 import 零改动。稳健性：注册开关与集成凭证读取失败时留下错误日志（此前静默降级）；`pnpm release` 新增 tag 与全部 workspace 版本、`FLAREMO_API_VERSION` 的一致性断言，漏 bump 会在发版前置被拦截。无 API 变化、无数据变化。

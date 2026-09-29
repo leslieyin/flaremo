@@ -18,6 +18,7 @@ import {
   createMemory,
   createMemoryFromMemo,
   forgetMemory,
+  getMemoryLineage,
   hardDeleteMemory,
   linkMemory,
   listMemories,
@@ -305,6 +306,43 @@ describe("memory domain services", () => {
     expect(results[0]?.matched_by).toBe("semantic");
   });
 
+  it("recalls a match beyond the first 50 active rows via FTS", async () => {
+    // Fill the table past the old unordered candidate window: the filler rows
+    // come first, the target is inserted last. The pre-fix recall fetched an
+    // unordered limit(50) window and intersected FTS hits into it, so a row
+    // past the window was invisible to recall no matter how well it matched.
+    for (let i = 0; i < 55; i++) {
+      await createMemory(db, user, AGENT, {
+        content: `填充记忆 ${i} 号：部署配置记录`,
+        type: "semantic",
+        kind: "fact",
+        scopeType: "global",
+        scopeKey: null,
+        tier: "normal",
+        importance: 50,
+        confidence: 50,
+      });
+    }
+    const target = await createMemory(db, user, AGENT, {
+      content: "支付渠道选择了 Creem 结算",
+      type: "semantic",
+      kind: "decision",
+      scopeType: "global",
+      scopeKey: null,
+      tier: "normal",
+      importance: 90,
+      confidence: 90,
+    });
+
+    const results = await recallMemories(db, user, {
+      query: "Creem",
+      agent: "codex",
+      limit: 8,
+    });
+    expect(results.map((row) => row.id)).toContain(target.memory.id);
+    expect(results[0]?.content).toContain("Creem");
+  });
+
   it("bootstraps core and confirmed constraints within the char budget", async () => {
     await createMemory(db, user, USER, {
       content: "FlareMo 必须保持 Cloudflare Native",
@@ -368,7 +406,7 @@ describe("memory domain services", () => {
     expect(result.episode.type).toBe("episodic");
     expect(result.items).toHaveLength(2);
 
-    const listed = await listMemories(db, user, {
+    const { memories: listed } = await listMemories(db, user, {
       scopeKey: "github:realchendahuang/FlareMo",
     });
     expect(listed).toHaveLength(3);
@@ -416,6 +454,87 @@ describe("memory domain services", () => {
     ).rejects.toThrow(/only the user/i);
   });
 
+  it("agent contradicts queues the claimant for review without touching the disputed memory", async () => {
+    const confirmed = await createMemory(db, user, USER, {
+      content: "构建工具用 Vite",
+      type: "semantic",
+      kind: "decision",
+      scopeType: "project",
+      scopeKey: "github:realchendahuang/FlareMo",
+      tier: "normal",
+      importance: 80,
+      confidence: 100,
+    });
+    const claim = await createMemory(db, user, AGENT, {
+      content: "构建工具其实是 Rspack",
+      type: "semantic",
+      kind: "decision",
+      scopeType: "project",
+      scopeKey: "github:realchendahuang/FlareMo",
+      tier: "normal",
+      importance: 50,
+      confidence: 40,
+    });
+
+    await linkMemory(db, user, AGENT, {
+      memoryId: claim.memory.id,
+      relatedMemoryId: confirmed.memory.id,
+      relationType: "contradicts",
+      resourceRelationType: "references",
+    });
+
+    const review = await listMemoryReview(db, user);
+    const claimRow = review.find((m) => m.id === claim.memory.id);
+    expect(claimRow?.needs_review).toBe(true);
+    expect(claimRow?.review_reason).toBe("contradicts");
+
+    // The disputed memory itself is untouched — even though it is user-
+    // confirmed — and an agent dispute can never retire it.
+    const target = (await listMemories(db, user, {})).memories.find(
+      (m) => m.id === confirmed.memory.id,
+    );
+    expect(target?.needs_review).toBe(false);
+    expect(target?.verification).toBe("confirmed");
+    expect(target?.status).toBe("active");
+
+    // The user resolving the claim clears it from the review queue.
+    await confirmMemory(db, user, USER, claim.memory.id);
+    expect(await listMemoryReview(db, user)).toHaveLength(0);
+  });
+
+  it("a user-initiated contradict does not queue itself for review", async () => {
+    const a = await createMemory(db, user, USER, {
+      content: "缓存用 KV",
+      type: "semantic",
+      kind: "decision",
+      scopeType: "global",
+      scopeKey: null,
+      tier: "normal",
+      importance: 60,
+      confidence: 100,
+    });
+    const b = await createMemory(db, user, USER, {
+      content: "缓存用 Durable Objects",
+      type: "semantic",
+      kind: "decision",
+      scopeType: "global",
+      scopeKey: null,
+      tier: "normal",
+      importance: 60,
+      confidence: 100,
+    });
+
+    await linkMemory(db, user, USER, {
+      memoryId: a.memory.id,
+      relatedMemoryId: b.memory.id,
+      relationType: "contradicts",
+      resourceRelationType: "references",
+    });
+
+    // The user is the judge; their own contradiction needs no review queue.
+    expect(await listMemoryReview(db, user)).toHaveLength(0);
+  });
+
   it("confirm, lock, unlock, and archive are user-only and idempotent", async () => {
     const created = await createMemory(db, user, AGENT, {
       content: "部署流程 verify → dry-run → deploy",
@@ -435,13 +554,14 @@ describe("memory domain services", () => {
     await confirmMemory(db, user, USER, id);
     await lockMemory(db, user, USER, id);
     expect(
-      (await listMemories(db, user, {})).find((m) => m.id === id)?.verification,
+      (await listMemories(db, user, {})).memories.find((m) => m.id === id)
+        ?.verification,
     ).toBe("locked");
     await unlockMemory(db, user, USER, id);
     await archiveMemory(db, user, USER, id);
-    expect(await listMemories(db, user, { status: "archived" })).toHaveLength(
-      1,
-    );
+    expect(
+      (await listMemories(db, user, { status: "archived" })).memories,
+    ).toHaveLength(1);
   });
 
   it("links a memo to a memory and promotes a memory back to a memo", async () => {
@@ -501,7 +621,7 @@ describe("memory domain services", () => {
     });
 
     const bundle = await exportData(db, user);
-    expect(bundle.version).toBe(4);
+    expect(bundle.version).toBe(5);
     expect(bundle.memories).toHaveLength(1);
     expect(bundle.memories[0]?.name).toBe(created.memory.id);
 
@@ -515,10 +635,57 @@ describe("memory domain services", () => {
     const result = await importData(db, user, bundle);
     expect(result.imported_memories).toBe(1);
 
-    const restored = await listMemories(db, user, {});
+    const { memories: restored } = await listMemories(db, user, {});
     expect(restored).toHaveLength(1);
     expect(restored[0]?.id).toBe(created.memory.id);
     expect(restored[0]?.content).toBe("FlareMo 必须保持 Cloudflare Native");
     expect(restored[0]?.verification).toBe("confirmed");
+
+    // v5 carries the ledger's evidence chain and lifecycle trail. A round-trip
+    // that dropped them would silently erase why a fact exists and how it
+    // evolved, which is the product's central promise.
+    const lineage = await getMemoryLineage(db, user, created.memory.id);
+    expect(lineage.events.length).toBeGreaterThan(0);
+    expect(
+      lineage.events.some((event) => event.event_type === "confirmed"),
+    ).toBe(true);
+  });
+
+  it("pages the ledger with a cursor and rejects forged tokens", async () => {
+    for (let index = 0; index < 5; index++) {
+      await createMemory(db, user, USER, {
+        content: `分页测试记忆 ${index}`,
+        type: "semantic",
+        kind: "fact",
+        scopeType: "global",
+        scopeKey: null,
+        tier: "normal",
+        importance: 40,
+        confidence: 80,
+      });
+    }
+
+    const first = await listMemories(db, user, { pageSize: 2 });
+    expect(first.memories).toHaveLength(2);
+    expect(first.nextPageToken).toBeTruthy();
+
+    const seen = new Set(first.memories.map((m) => m.id));
+    let token = first.nextPageToken;
+    while (token) {
+      const page = await listMemories(db, user, {
+        pageSize: 2,
+        pageToken: token,
+      });
+      for (const memory of page.memories) {
+        expect(seen.has(memory.id)).toBe(false);
+        seen.add(memory.id);
+      }
+      token = page.nextPageToken;
+    }
+    expect(seen.size).toBe(5);
+
+    await expect(
+      listMemories(db, user, { pageToken: "not-a-token" }),
+    ).rejects.toThrow(/invalid page token/i);
   });
 });

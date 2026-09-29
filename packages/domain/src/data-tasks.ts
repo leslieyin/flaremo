@@ -76,6 +76,35 @@ export async function getDataTask(db: FlareMoDb, user: UserRow, id: string) {
 }
 
 /**
+ * Read a task row without the session-ownership check. Queue consumers and
+ * the cron reconciler act on task ids rather than on behalf of the session
+ * user, so they resolve the owner from the row itself.
+ */
+export async function getDataTaskById(db: FlareMoDb, id: string) {
+  return db.select().from(dataTasks).where(eq(dataTasks.id, id)).get();
+}
+
+/**
+ * Claim a queued task for execution: flip `queued` to `running` and renew the
+ * lease in one conditional update, mirroring claimMemberRemovalJob. Any other
+ * status — succeeded, failed, or a lease still held by an in-flight run —
+ * returns false, which keeps queue redeliveries and doubled sends as no-ops.
+ */
+export async function claimQueuedDataTask(db: FlareMoDb, id: string) {
+  const now = new Date();
+  const result = await db
+    .update(dataTasks)
+    .set({
+      status: "running",
+      phase: "scanning",
+      leaseUntil: new Date(now.getTime() + DATA_TASK_LEASE_MS).toISOString(),
+      updatedAt: now.toISOString(),
+    })
+    .where(and(eq(dataTasks.id, id), eq(dataTasks.status, "queued")));
+  return result.meta?.changes === 1;
+}
+
+/**
  * List the user's data-transfer tasks, newest first.
  */
 export async function listDataTasks(db: FlareMoDb, user: UserRow, limit = 20) {

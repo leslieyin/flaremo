@@ -5,6 +5,7 @@ import {
   dataTasks,
   memos,
   memosNotifications,
+  pushSubscriptions,
 } from "@flaremo/db";
 import {
   createMemo,
@@ -13,15 +14,24 @@ import {
   createTask,
   ensureSingleUser,
   moveMemoToTrash,
+  type PushPayload,
+  pushNotificationToUser,
   type TeamViewer,
 } from "@flaremo/domain";
 import { eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FlareMoEnv } from "./env";
 import { runScheduledMaintenance } from "./index";
 
 const NOW = Date.parse("2026-09-15T03:00:00.000Z");
+
+vi.mock("@flaremo/domain", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@flaremo/domain")>();
+  // The default no-op resolves like the real function; scheduled-tasks calls
+  // `.catch()` on the result, so a bare vi.fn() would break its callers.
+  return { ...actual, pushNotificationToUser: vi.fn(async () => 0) };
+});
 
 /** Minimal R2 bucket double covering the maintenance surface: delete + list. */
 class FakeR2Bucket {
@@ -95,6 +105,10 @@ describe("scheduled maintenance", () => {
       DB: database,
       ATTACHMENTS: r2,
       FLAREMO_EMBEDDING_PROVIDER: "none",
+      // Non-empty keys open the web-push branch; the pushNotificationToUser
+      // mock keeps the tests off the real crypto path.
+      FLAREMO_VAPID_PUBLIC_KEY: "test-public-key",
+      FLAREMO_VAPID_PRIVATE_KEY: "test-private-key",
     } as unknown as FlareMoEnv;
   });
 
@@ -227,5 +241,52 @@ describe("scheduled maintenance", () => {
     expect(r2.objects.has(`exports/${taskId}/manifest.json`)).toBe(false);
     // Artifacts of live tasks are untouched.
     expect(r2.objects.has("exports/other/artifact.json")).toBe(true);
+  });
+
+  it("pushes an overdue reminder whose payload deep-links to /projects", async () => {
+    // A subscription row makes the web-push branch live; the mock on
+    // pushNotificationToUser captures the plaintext payload, so the click
+    // URL — the /calendar → /projects migration's regression guard — is
+    // asserted without depending on the aes128gcm crypto internals.
+    await db.insert(pushSubscriptions).values({
+      id: createResourceId("push"),
+      userId: user.id,
+      endpoint: "https://push.example/endpoint-1",
+      p256dh: "test-p256dh",
+      auth: "test-auth",
+      createdAt: new Date(NOW).toISOString(),
+      updatedAt: new Date(NOW).toISOString(),
+    });
+
+    const project = await createProject(db, user, { name: "plan" });
+    await createTask(db, user, { type: "user" }, {
+      project_id: project.id,
+      title: "overdue chore",
+      due_at: "2026-09-01",
+    } as never);
+
+    const pushes: Array<{ userId: string; payload: PushPayload }> = [];
+    vi.mocked(pushNotificationToUser).mockClear();
+    vi.mocked(pushNotificationToUser).mockImplementation(
+      async (_db, _keys, userId, payload) => {
+        pushes.push({ userId, payload });
+        return 1;
+      },
+    );
+
+    await runScheduledMaintenance(env, NOW);
+
+    expect(pushes).toHaveLength(1);
+    expect(pushes[0]?.userId).toBe(user.id);
+    expect(pushes[0]?.payload).toMatchObject({
+      title: "FlareMo 任务提醒",
+      body: "有 1 个任务已经逾期。",
+      url: "/projects",
+    });
+
+    // The inbox row carries the task title as its snippet.
+    const rows = await db.select().from(memosNotifications);
+    const overdueRow = rows.find((row) => row.type === "task_overdue");
+    expect(overdueRow?.snippet).toBe("overdue chore");
   });
 });
