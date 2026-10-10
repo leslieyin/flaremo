@@ -76,6 +76,7 @@ FlareMo répond à une question plus simple : **Peut-on obtenir une base de conn
 
 ### 5. Collaboration d'équipe & Visibilité à 3 niveaux
 - **Gouvernance par rôles** : Rôles `owner`, `admin` et `member`. Les administrateurs invitent les membres via des liens d'activation à usage unique (les membres choisissent leur propre mot de passe ; les administrateurs ne manipulent jamais d'identifiants en clair).
+- **Atelier de projets d'équipe** : `/team-projects` regroupe tous les projets de l'équipe dans une seule vue — responsable, statut, avancement actuel, prochaine étape et date de suivi — et ouvre une page de détail pour tenir la synthèse, consigner les avancées et les décisions de réunion, et téléverser les fichiers de référence. Un projet est un mémo d'équipe ordinaire reconnu par un bloc de métadonnées `kosx-pm` dans son corps : les notes qui ne sont pas des projets restent intactes dans la timeline.
 - **Visibilité à 3 niveaux** :
   - 🔒 **Privé** : Visible uniquement par l'auteur.
   - 👥 **Équipe** : Lecture partagée avec les membres actifs de l'équipe.

@@ -22,7 +22,7 @@ Full steps: [Deploy with GitHub Actions](./github-action-deploy.md).
 
 ## Manual Deployment
 
-The repository does not track `wrangler.jsonc` (manual deployers keep their config as a local file), and there is no CI or automatic deployer. Create the resources, copy the config template, fill in your own values, then run the deploy commands.
+The repository does not track `wrangler.jsonc` (manual deployers keep their config as a local file); the upstream repository does not deploy on push, while a self-hosted fork or deployment repository may publish manually through the controlled GitHub Actions `workflow_dispatch` described above. Create the resources, copy the config template, fill in your own values, then run the deploy commands.
 
 ```bash
 pnpm install

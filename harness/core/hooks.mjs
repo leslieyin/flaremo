@@ -4,13 +4,7 @@
 // empty output, exit 0.
 
 import { readFileSync } from "node:fs";
-import {
-  LENS_HEADER,
-  OFFLINE_SNAPSHOT_NOTE,
-  UNREACHABLE_NOTICE,
-  WRAP_UP_NUDGE,
-} from "./texts.mjs";
-import { flaremoHome, lastFlushPath } from "./paths.mjs";
+import { flaremoHome } from "./paths.mjs";
 import { resolveProject } from "./project.mjs";
 import {
   lastFlushAt,
@@ -21,7 +15,13 @@ import {
   saveSession,
   writeSnapshot,
 } from "./state.mjs";
-import { HOOK_TIMEOUT_MS, request as defaultRequest } from "./transport.mjs";
+import {
+  LENS_HEADER,
+  OFFLINE_SNAPSHOT_NOTE,
+  UNREACHABLE_NOTICE,
+  WRAP_UP_NUDGE,
+} from "./texts.mjs";
+import { request as defaultRequest, HOOK_TIMEOUT_MS } from "./transport.mjs";
 
 export const HARNESSES = ["zcode", "codex", "antigravity"];
 
@@ -109,7 +109,10 @@ async function compileLens({ harness, projectKey, env, home, requestImpl }) {
   if (res.unreachable) {
     const snap = readSnapshot(home, projectKey);
     return snap
-      ? { injected: true, text: `${LENS_HEADER}\n\n${snap}\n${OFFLINE_SNAPSHOT_NOTE}` }
+      ? {
+          injected: true,
+          text: `${LENS_HEADER}\n\n${snap}\n${OFFLINE_SNAPSHOT_NOTE}`,
+        }
       : { injected: true, text: UNREACHABLE_NOTICE };
   }
   return { injected: false, text: null };
@@ -195,7 +198,13 @@ export async function handleHook(
         const isCompactReinject =
           harness === "codex" && payload.source === "compact";
         if (!state.lensInjected || isCompactReinject) {
-          const lens = await compileLens({ harness, projectKey, env, home, requestImpl });
+          const lens = await compileLens({
+            harness,
+            projectKey,
+            env,
+            home,
+            requestImpl,
+          });
           if (lens.injected) state.lensInjected = true;
           if (lens.text) output = sessionStartOutput(lens.text);
         }
@@ -208,7 +217,13 @@ export async function handleHook(
       case "pre-invocation": {
         if (payload.invocationNum === 0) state.turns += 1;
         if (!state.lensInjected) {
-          const lens = await compileLens({ harness, projectKey, env, home, requestImpl });
+          const lens = await compileLens({
+            harness,
+            projectKey,
+            env,
+            home,
+            requestImpl,
+          });
           if (lens.injected) state.lensInjected = true;
           if (lens.text) output = antigravityInjectOutput(lens.text);
         }

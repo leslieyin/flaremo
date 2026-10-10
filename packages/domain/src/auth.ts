@@ -10,7 +10,7 @@ import {
   type UserRow,
   users,
 } from "@flaremo/db";
-import { and, desc, eq, gt } from "drizzle-orm";
+import { and, asc, desc, eq, gt } from "drizzle-orm";
 import { ConflictError } from "./errors";
 import type { TeamRole, TeamViewer } from "./team-permissions";
 import {
@@ -418,6 +418,69 @@ export async function getAuthUserById(db: FlareMoDb, authUserId: string) {
       where: eq(authUsers.id, authUserId),
     })) ?? null
   );
+}
+
+export type FlaremoUserWithMembership = {
+  user: UserRow;
+  authUser: {
+    id: string;
+    email: string;
+    username: string | null;
+  } | null;
+  membership: {
+    role: TeamRole;
+    expiresAt: Date | null;
+  } | null;
+};
+
+/**
+ * List domain users with their Better Auth identity and default-team seat in
+ * one join. The left joins preserve legacy rows with no auth link or no
+ * default-team membership, while the organization predicate prevents a
+ * membership in another organization from changing the admin DTO.
+ */
+export async function listFlaremoUsersWithMemberships(
+  db: FlareMoDb,
+  options: { includeRemoved?: boolean } = {},
+): Promise<FlaremoUserWithMembership[]> {
+  const rows = await db
+    .select({
+      user: users,
+      authUserId: authUsers.id,
+      authEmail: authUsers.email,
+      authUsername: authUsers.username,
+      role: authMembers.role,
+      expiresAt: authMembers.expiresAt,
+    })
+    .from(users)
+    .leftJoin(authUserLinks, eq(authUserLinks.flaremoUserId, users.id))
+    .leftJoin(authUsers, eq(authUsers.id, authUserLinks.authUserId))
+    .leftJoin(authOrganizations, eq(authOrganizations.slug, DEFAULT_TEAM_SLUG))
+    .leftJoin(
+      authMembers,
+      and(
+        eq(authMembers.userId, authUserLinks.authUserId),
+        eq(authMembers.organizationId, authOrganizations.id),
+      ),
+    )
+    .where(options.includeRemoved ? undefined : eq(users.status, "active"))
+    .orderBy(asc(users.createdAt))
+    .all();
+
+  return rows.map((row) => ({
+    user: row.user,
+    authUser:
+      row.authUserId && row.authEmail
+        ? {
+            id: row.authUserId,
+            email: row.authEmail,
+            username: row.authUsername,
+          }
+        : null,
+    membership: row.role
+      ? { role: row.role as TeamRole, expiresAt: row.expiresAt ?? null }
+      : null,
+  }));
 }
 
 /**

@@ -30,7 +30,7 @@ import { betterAuthRateLimitBucket, rateLimitGuard } from "./rate-limit";
 
 // Cron/queue maintenance surface moved to its own module; re-exported so the
 // original import path (./index) keeps serving it verbatim.
-export { runScheduledMaintenance } from "./scheduled-tasks";
+export { runQueuedJobs, runScheduledMaintenance } from "./scheduled-tasks";
 
 import { mountLazyRoute, mountLazySsrPages } from "./lazy-routes";
 import { accountApi } from "./routes/account-api";
@@ -52,7 +52,7 @@ import { pluginsStoreApi } from "./routes/plugins-store-api";
 import { projectsApi } from "./routes/projects-api";
 import { publicApi } from "./routes/public-api";
 import { tasksApi } from "./routes/tasks-api";
-import { runScheduledMaintenance } from "./scheduled-tasks";
+import { runQueuedJobs, runScheduledMaintenance } from "./scheduled-tasks";
 import { isKnownFrontendPath } from "./spa-routes";
 
 /**
@@ -417,8 +417,8 @@ function logBackgroundTaskFailure(task: string, error: unknown) {
 
 /**
  * The limits half of runScheduledMaintenance's options, resolved once per
- * lifecycle event. Scheduled and queue handlers used to each spell the same
- * three fields out inline.
+ * scheduled lifecycle event. Queue jobs do not run the maintenance passes
+ * that consume these limits.
  */
 async function maintenanceOptions(
   env: FlareMoEnv,
@@ -494,10 +494,11 @@ export function createFlareMoWorker(
     async queue(batch, env) {
       // Two message shapes share the consumer: {jobId} (member removal) and
       // {taskId} (data export). Both run through the same idempotent
-      // executor as scheduled maintenance so retries cannot diverge from
-      // the daily recovery path. A malformed body can never become valid on
-      // retry — drop it here so the batch ack removes the poison message
-      // instead of looping.
+      // executor as scheduled maintenance so retries cannot diverge from the
+      // daily recovery path. The queue path intentionally runs only these
+      // message-selected jobs; the scheduled handler owns the full sweep.
+      // A malformed body can never become valid on retry — drop it here so
+      // the batch ack removes the poison message instead of looping.
       const removalJobIds: string[] = [];
       const exportTaskIds: string[] = [];
       for (const message of batch.messages) {
@@ -512,12 +513,7 @@ export function createFlareMoWorker(
           );
         }
       }
-      await runScheduledMaintenance(env, Date.now(), {
-        ...(await maintenanceOptions(
-          env,
-          resolvedOptions,
-          hasCustomUserPlanLimits,
-        )),
+      await runQueuedJobs(env, {
         removalJobIds,
         exportTaskIds,
       });

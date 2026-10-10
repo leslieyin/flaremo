@@ -22,7 +22,7 @@ FlareMo 部署到 Cloudflare Workers。Worker 同时承载前端静态资源和 
 
 ## 手动部署
 
-仓库不跟踪 `wrangler.jsonc`（手动部署者的配置以本机文件形式存在），也没有 CI 或自动部署。先创建资源、复制配置模板并填入自己的值，再执行部署命令。
+仓库不跟踪 `wrangler.jsonc`（手动部署者的配置以本机文件形式存在）；上游仓库不通过 push 自动部署，自托管 fork 或部署仓库可以按上一节通过受控 GitHub Action 的 `workflow_dispatch` 手动发布。先创建资源、复制配置模板并填入自己的值，再执行部署命令。
 
 安装依赖：
 

@@ -4,7 +4,6 @@ import {
   clearTimelineSearch,
   mobileSearchInput,
   openSemanticSearch,
-  searchTimeline,
 } from "./workspace-helpers";
 
 function note(id: string, overrides: Partial<MemoDto> = {}): MemoDto {

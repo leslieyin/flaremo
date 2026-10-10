@@ -4,7 +4,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { codexHome, piHome, zcodeHome } from "./paths.mjs";
 import { resolveProject, sha256 } from "./project.mjs";
 import { request as defaultRequest } from "./transport.mjs";
@@ -48,7 +48,9 @@ function candidateDirs(home) {
     } catch {}
   }
   try {
-    for (const w of readdirSync(join(home, "WeChatProjects"), { withFileTypes: true })) {
+    for (const w of readdirSync(join(home, "WeChatProjects"), {
+      withFileTypes: true,
+    })) {
       if (w.isDirectory()) dirs.push(join(home, "WeChatProjects", w.name));
     }
   } catch {}
@@ -67,7 +69,13 @@ export function zcodeProjectCandidates(env = process.env) {
 
 /** Minimal YAML-ish frontmatter: name, description, metadata.{type,originSessionId}. */
 export function parseZcodeFrontmatter(text) {
-  const out = { name: "", description: "", type: "", originSessionId: "", body: text };
+  const out = {
+    name: "",
+    description: "",
+    type: "",
+    originSessionId: "",
+    body: text,
+  };
   if (!text.startsWith("---")) return out;
   const end = text.indexOf("\n---", 3);
   if (end < 0) return out;
@@ -122,7 +130,9 @@ export function collectZcodeMemories(env = process.env) {
     const memDir = join(root, d.name, "memory");
     let files = [];
     try {
-      files = readdirSync(memDir).filter((f) => f.endsWith(".md") && f !== "MEMORY.md");
+      files = readdirSync(memDir).filter(
+        (f) => f.endsWith(".md") && f !== "MEMORY.md",
+      );
     } catch {
       continue;
     }
@@ -180,7 +190,9 @@ function splitSections(text, level) {
   const sections = [];
   let match;
   let prev = null;
-  while ((match = re.exec(text))) {
+  while (true) {
+    match = re.exec(text);
+    if (!match) break;
     if (prev) prev.body = text.slice(prev.end, match.index);
     prev = { title: match[1].trim(), end: re.lastIndex };
     sections.push(prev);
@@ -201,7 +213,10 @@ function paragraph(body) {
   return (body || "")
     .split(/\n\s*\n/)
     .map((p) => p.trim())
-    .filter((p) => p && !p.startsWith("#") && !p.startsWith("-") && !p.startsWith("*"))
+    .filter(
+      (p) =>
+        p && !p.startsWith("#") && !p.startsWith("-") && !p.startsWith("*"),
+    )
     .join("\n\n")
     .trim();
 }
@@ -243,10 +258,18 @@ export function collectCodexMemories(env = process.env) {
     for (const sec of splitSections(text, 2)) {
       if (sec.title === "User Profile") {
         const p = paragraph(sec.body);
-        if (p) items.push(codexItem({ scopeKey: null, section: sec.title, text: p }));
-      } else if (sec.title === "User preferences" || sec.title === "General Tips") {
+        if (p)
+          items.push(
+            codexItem({ scopeKey: null, section: sec.title, text: p }),
+          );
+      } else if (
+        sec.title === "User preferences" ||
+        sec.title === "General Tips"
+      ) {
         for (const b of bullets(sec.body)) {
-          items.push(codexItem({ scopeKey: null, section: sec.title, text: b }));
+          items.push(
+            codexItem({ scopeKey: null, section: sec.title, text: b }),
+          );
         }
       }
     }
@@ -312,7 +335,11 @@ function piItem({ scopeKey, relpath, index, body, created, extraTags = [] }) {
       source_agent: "pi-import",
       observed_at: created ?? undefined,
       evidence: [
-        { source_type: "document", source_id: `pi:${relpath}#${index}`, excerpt: content.slice(0, 2000) },
+        {
+          source_type: "document",
+          source_id: `pi:${relpath}#${index}`,
+          excerpt: content.slice(0, 2000),
+        },
       ],
     },
     project: scopeKey ?? "global",
@@ -339,7 +366,13 @@ export function collectPiMemories(env = process.env) {
           index: i,
           body: e.body,
           created: e.created,
-          extraTags: [file === "USER.md" ? "user" : file === "failures.md" ? "failure" : "memory"],
+          extraTags: [
+            file === "USER.md"
+              ? "user"
+              : file === "failures.md"
+                ? "failure"
+                : "memory",
+          ],
         }),
       );
     });
@@ -358,7 +391,9 @@ export function collectPiMemories(env = process.env) {
     const abs = join(projectsDir, d.name, "MEMORY.md");
     if (!existsSync(abs)) continue;
     const candidate = join(env.HOME || homedir(), "code", d.name);
-    const scopeKey = existsSync(candidate) ? resolveProject(candidate, env) : null;
+    const scopeKey = existsSync(candidate)
+      ? resolveProject(candidate, env)
+      : null;
     const text = readFileSync(abs, "utf-8");
     piEntries(text).forEach((e, i) => {
       items.push(
@@ -388,14 +423,32 @@ export function collectImports(harness, env = process.env) {
 
 export async function runImport(
   harness,
-  { apply = false, env = process.env, home, requestImpl = defaultRequest, timeoutMs = 8000 } = {},
+  {
+    apply = false,
+    env = process.env,
+    home,
+    requestImpl = defaultRequest,
+    timeoutMs = 8000,
+  } = {},
 ) {
   const items = collectImports(harness, env);
-  const result = { total: items.length, perProject: {}, samples: [], sent: 0, skipped: [], unreachable: false };
+  const result = {
+    total: items.length,
+    perProject: {},
+    samples: [],
+    sent: 0,
+    skipped: [],
+    unreachable: false,
+  };
   for (const item of items) {
-    result.perProject[item.project] = (result.perProject[item.project] ?? 0) + 1;
+    result.perProject[item.project] =
+      (result.perProject[item.project] ?? 0) + 1;
     if (result.samples.length < 5) {
-      result.samples.push({ project: item.project, label: item.label, content: item.args.content.slice(0, 120) });
+      result.samples.push({
+        project: item.project,
+        label: item.label,
+        content: item.args.content.slice(0, 120),
+      });
     }
   }
   if (!apply) return result;
@@ -403,7 +456,11 @@ export async function runImport(
   for (const item of items) {
     let res;
     for (let attempt = 0; ; attempt += 1) {
-      res = await requestImpl("memory_remember", item.args, { timeoutMs, env, home });
+      res = await requestImpl("memory_remember", item.args, {
+        timeoutMs,
+        env,
+        home,
+      });
       if (!res.unreachable || attempt >= 3) break;
       await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
     }
@@ -414,7 +471,10 @@ export async function runImport(
       result.skipped.push({ label: item.label, reason: "unreachable" });
       break; // no point hammering a dead endpoint
     } else {
-      result.skipped.push({ label: item.label, reason: res.error ?? `HTTP ${res.status}` });
+      result.skipped.push({
+        label: item.label,
+        reason: res.error ?? `HTTP ${res.status}`,
+      });
     }
   }
   return result;

@@ -21,13 +21,13 @@
 
 ## docs 镜像
 
-`src/lib/docs-source.generated.ts` 静态导入 `../../../../docs/*.md` 与 `../../../../docs/en/*.md`，由 Vite `?raw` 打包。新增/修改文档后：
+`src/lib/docs-source.generated.ts` 保留文档元数据，并为每篇正文提供 `import(...?raw)` 异步 loader；详情路由加载器会在渲染前等待对应正文，因此首页入口不会携带全部 Markdown。新增/修改文档后：
 
 ```bash
 pnpm --filter @flaremo/site build
 ```
 
-确保新 slug 出现在 `src/lib/docs-source.generated.ts`（`?raw` import + `ZH_DOCS`/`EN_DOCS` 条目），以及 `scripts/build.mjs` 顶部的 `DOC_SLUGS`（`getAllPaths()` 按它展开预渲染路径）。英文条目加 `fallbackFromZh: true` 时回退中文正文，详情页顶部显示"翻译待补"提示条（`src/pages/docs-detail-page.tsx`）。
+确保新 slug 出现在 `src/lib/docs-source.generated.ts` 的 `ZH_DOCS`/`EN_DOCS` 元数据条目（正文 loader 使用 `?raw`），以及 `scripts/build.mjs` 顶部的 `DOC_SLUGS`。后者是 SSG 的唯一预渲染 slug 清单，`getAllPaths()` 会将 16 个 slug 展开到 8 个 locale，当前总计 162 条路径。英文条目加 `fallbackFromZh: true` 时回退中文正文，详情页顶部显示"翻译待补"提示条（`src/pages/docs-detail-page.tsx`）。
 
 ## SEO
 
@@ -48,7 +48,7 @@ pnpm deploy:site             # 部署到 flaremo.app
 
 部署后必须检查：
 
-- `https://flaremo.app/`、`/en/`、`/pricing`、`/en/pricing`、`/docs/`、`/en/docs/`、`/docs/<slug>`、`/en/docs/<slug>` 全部 200
+- `https://flaremo.app/`、`/en/`、`/docs/`、`/en/docs/`、至少一个 `/docs/<slug>/` 与 `/en/docs/<slug>/` 全部 200；其余 locale 前缀也应命中 `scripts/build.mjs` 生成的路径
 - `view-source:` 看到完整 head（og、hreflang、JSON-LD）+ 非空 body
 - `https://flaremo.app/sitemap.xml` 与 `/robots.txt` 可访问
 - Lighthouse Performance ≥ 90（SSG 静态 HTML 首字节即有内容）

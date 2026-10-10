@@ -76,6 +76,7 @@ FlareMo answers a simpler question: **Can you get a 24/7 online, resilient, glob
 
 ### 5. Team Collaboration & 3-Tier Visibility
 - **Role governance**: `owner`, `admin`, and `member` roles. Admins invite members via one-time activation links (members choose their own passwords; admins never handle plaintext credentials).
+- **Team project workbench**: `/team-projects` collects every team project into one view — owner, status, current progress, next step, and follow-up date — and opens a detail page to maintain the summary, log progress and meeting outcomes, and upload reference files. A project is an ordinary team memo recognized by a `kosx-pm` metadata block in its body, so notes that are not projects stay untouched in the timeline.
 - **3-tier visibility**:
   - 🔒 **Private**: Only author can view.
   - 👥 **Team**: Shared read-only with active team members.

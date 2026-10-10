@@ -1,5 +1,7 @@
 import {
   applyFlaremoMigrations,
+  authMembers,
+  authOrganizations,
   authUsers,
   createDb,
   memos,
@@ -10,7 +12,11 @@ import {
 import { eq } from "drizzle-orm";
 import { Miniflare } from "miniflare";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { completeOwnerBootstrap, getViewerTeamMembership } from "./auth";
+import {
+  completeOwnerBootstrap,
+  getViewerTeamMembership,
+  listFlaremoUsersWithMemberships,
+} from "./auth";
 import { ConflictError, ForbiddenError, ValidationError } from "./errors";
 import { readHourlyCountTotals } from "./memo-hourly-counts";
 import { createMemo } from "./memos";
@@ -206,6 +212,51 @@ describe("team users", () => {
     // Revocation removes the membership row entirely.
     await revokeTeamReader(db, member.authUserId);
     expect(await getViewerTeamMembership(db, member.authUserId)).toBeNull();
+  });
+
+  it("joins admin users in one pass across unlinked and multi-org identities", async () => {
+    const mapped = await createMember("Mapped");
+    const unlinked = await createFlaremoMember(db, {
+      email: "unlinked@example.com",
+      name: "Unlinked",
+    });
+    const now = new Date();
+    await db.insert(authOrganizations).values({
+      id: "org/secondary",
+      name: "Secondary",
+      slug: "secondary",
+      logo: null,
+      metadata: null,
+      createdAt: now,
+    });
+    await db.insert(authMembers).values({
+      id: "member/secondary",
+      organizationId: "org/secondary",
+      userId: mapped.authUserId,
+      role: "admin",
+      expiresAt: null,
+      createdAt: now,
+    });
+
+    // Keep this above the D1 binding threshold to guard against a future
+    // per-user query or IN-list implementation in the admin read path.
+    for (let index = 0; index < 105; index += 1) {
+      await createFlaremoMember(db, {
+        email: `bulk-${index}@example.com`,
+        name: `Bulk ${index}`,
+      });
+    }
+
+    const rows = await listFlaremoUsersWithMemberships(db);
+    expect(rows).toHaveLength(108);
+    expect(rows.find((row) => row.user.id === unlinked.id)).toMatchObject({
+      authUser: null,
+      membership: null,
+    });
+    expect(rows.find((row) => row.user.id === mapped.id)).toMatchObject({
+      authUser: { id: mapped.authUserId },
+      membership: { role: "member" },
+    });
   });
 
   it("removes private data and adopts team content into the owner account", async () => {

@@ -118,6 +118,21 @@ export async function listDataTasks(db: FlareMoDb, user: UserRow, limit = 20) {
 }
 
 /**
+ * Bounded cron fallback for export jobs whose Queue delivery was missed.
+ * Imports are never claimed here because their conflict strategy is not safe
+ * to replay in the background.
+ */
+export async function listQueuedDataExportTasks(db: FlareMoDb, limit = 5) {
+  return db
+    .select()
+    .from(dataTasks)
+    .where(and(eq(dataTasks.kind, "export"), eq(dataTasks.status, "queued")))
+    .orderBy(asc(dataTasks.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 5))
+    .all();
+}
+
+/**
  * Update task progress fields and bump `updated_at`. Returns the refreshed
  * row or undefined when the task no longer exists.
  */

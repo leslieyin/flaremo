@@ -18,6 +18,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { resolveCredentials } from "./credentials.mjs";
+import { runImport } from "./importer.mjs";
 import {
   agentsHome,
   backupDir,
@@ -30,8 +32,6 @@ import {
   piHome,
   zcodeHome,
 } from "./paths.mjs";
-import { resolveCredentials } from "./credentials.mjs";
-import { runImport } from "./importer.mjs";
 
 export const PLUGIN_NAME = "flaremo-memory";
 export const MARKETPLACE_NAME = "flaremo";
@@ -74,7 +74,11 @@ function writeJsonAtomic(path, obj) {
   renameSync(tmp, path);
 }
 
-function ensureSymlink(linkPath, target, { log = noop, dryRun = false, home, backupTag } = {}) {
+function ensureSymlink(
+  linkPath,
+  target,
+  { log = noop, dryRun = false, home, backupTag } = {},
+) {
   let stat = null;
   try {
     stat = lstatSync(linkPath);
@@ -97,7 +101,13 @@ function ensureSymlink(linkPath, target, { log = noop, dryRun = false, home, bac
       log(`    将备份现有 ${linkPath} 并建立软链 → ${target}`);
       return true;
     }
-    backupOnce(home, backupTag ?? "misc", linkPath, `${linkPath.split("/").pop()}-replaced`, log);
+    backupOnce(
+      home,
+      backupTag ?? "misc",
+      linkPath,
+      `${linkPath.split("/").pop()}-replaced`,
+      log,
+    );
     symlinkSync(target, linkPath);
     log(`    软链 ${linkPath} → ${target}`);
     return true;
@@ -200,7 +210,10 @@ export function tomlMemoriesState(text) {
 export function resolveCodexBin(env = process.env) {
   if (env.CODEX_BIN) return env.CODEX_BIN;
   try {
-    const out = execFileSync("which", ["codex"], { timeout: 2000, stdio: ["ignore", "pipe", "ignore"] })
+    const out = execFileSync("which", ["codex"], {
+      timeout: 2000,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
       .toString()
       .trim();
     if (out) return out;
@@ -220,7 +233,9 @@ export function detectHarnesses(env = process.env) {
 
 function zcodeRunning() {
   try {
-    execFileSync("pgrep", ["-x", "ZCode"], { stdio: ["ignore", "ignore", "ignore"] });
+    execFileSync("pgrep", ["-x", "ZCode"], {
+      stdio: ["ignore", "ignore", "ignore"],
+    });
     return true;
   } catch {
     return false;
@@ -228,7 +243,9 @@ function zcodeRunning() {
 }
 
 function marketplaceName(checkout) {
-  const m = readJsonFile(join(checkout, "harness", ".agents", "plugins", "marketplace.json"));
+  const m = readJsonFile(
+    join(checkout, "harness", ".agents", "plugins", "marketplace.json"),
+  );
   return m?.name || MARKETPLACE_NAME;
 }
 
@@ -246,7 +263,9 @@ export async function initCmd({
   log(`FlareMo init${dryRun ? "（dry-run，只打印计划）" : ""}`);
   log(`检出目录: ${checkout}`);
   log(`状态目录: ${home}`);
-  log(`目标 Harness: ${targets.length ? targets.join(", ") : "（未探测到，仅装 CLI 与 skill）"}`);
+  log(
+    `目标 Harness: ${targets.length ? targets.join(", ") : "（未探测到，仅装 CLI 与 skill）"}`,
+  );
 
   // 1. state home + hook wrapper + PATH symlink
   if (!dryRun) {
@@ -256,12 +275,16 @@ export async function initCmd({
   }
   log(`\n[1] 本地状态与 CLI`);
   writeHookWrapper(home, { log, dryRun });
-  ensureSymlink(join(flaremoBinDir(env), "flaremo"), join(checkout, "bin", "flaremo"), {
-    log,
-    dryRun,
-    home,
-    backupTag: "cli",
-  });
+  ensureSymlink(
+    join(flaremoBinDir(env), "flaremo"),
+    join(checkout, "bin", "flaremo"),
+    {
+      log,
+      dryRun,
+      home,
+      backupTag: "cli",
+    },
+  );
   ensureSymlink(
     join(agentsHome(env), "skills", PLUGIN_NAME),
     join(checkout, "skills", PLUGIN_NAME),
@@ -271,16 +294,21 @@ export async function initCmd({
   // 2. per-harness wiring; import BEFORE disabling native memory
   for (const harness of targets) {
     log(`\n[${harness}]`);
-    if (harness === "zcode") await initZcode({ env, home, checkout, dryRun, log });
-    if (harness === "codex") await initCodex({ env, home, checkout, dryRun, log });
-    if (harness === "antigravity") await initAntigravity({ env, home, checkout, dryRun, log });
+    if (harness === "zcode")
+      await initZcode({ env, home, checkout, dryRun, log });
+    if (harness === "codex")
+      await initCodex({ env, home, checkout, dryRun, log });
+    if (harness === "antigravity")
+      await initAntigravity({ env, home, checkout, dryRun, log });
     if (harness === "pi") await initPi({ env, home, checkout, dryRun, log });
   }
 
   if (!dryRun) {
     const cred = resolveCredentials(env, home);
     if (!cred.pat) {
-      log(`\n⚠️ 尚未配置凭据：运行 flaremo login --url <实例地址>（PAT 从 stdin 读入）。`);
+      log(
+        `\n⚠️ 尚未配置凭据：运行 flaremo login --url <实例地址>（PAT 从 stdin 读入）。`,
+      );
     }
     log(`\n完成。自检: flaremo doctor`);
   }
@@ -298,7 +326,8 @@ async function initZcode({ env, home, checkout, dryRun, log }) {
   } else if (dryRun) {
     log(`    将向 ${configPath} 的 plugins.dirs 添加 ${pluginDir}`);
   } else {
-    if (existsSync(configPath)) backupCopyOnce(home, "zcode", configPath, "cli-config.json", log);
+    if (existsSync(configPath))
+      backupCopyOnce(home, "zcode", configPath, "cli-config.json", log);
     const next = {
       ...config,
       plugins: { ...config.plugins, dirs: [...dirs, pluginDir] },
@@ -312,7 +341,9 @@ async function initZcode({ env, home, checkout, dryRun, log }) {
   if (dryRun) {
     log(`    将导入原生记忆 ${imported.total} 条（dry-run 未发送）`);
   } else {
-    log(`    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`);
+    log(
+      `    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`,
+    );
   }
   if (imported.unreachable) {
     log(`    ⚠️ 记忆服务不可达，搬家未完成——暂不关闭原生记忆`);
@@ -325,11 +356,14 @@ async function initZcode({ env, home, checkout, dryRun, log }) {
   } else if (dryRun) {
     log(`    将设置 ${settingPath} 的 memoryEnabled=false`);
   } else {
-    if (existsSync(settingPath)) backupCopyOnce(home, "zcode", settingPath, "v2-setting.json", log);
+    if (existsSync(settingPath))
+      backupCopyOnce(home, "zcode", settingPath, "v2-setting.json", log);
     writeJsonAtomic(settingPath, { ...(setting ?? {}), memoryEnabled: false });
     log(`    memoryEnabled → false`);
     if (zcodeRunning()) {
-      log(`    ⚠️ 检测到 ZCode 正在运行，它可能把设置写回——若被覆盖请退出 ZCode 后重跑 init`);
+      log(
+        `    ⚠️ 检测到 ZCode 正在运行，它可能把设置写回——若被覆盖请退出 ZCode 后重跑 init`,
+      );
     }
   }
 }
@@ -340,7 +374,9 @@ async function initCodex({ env, home, checkout, dryRun, log }) {
   if (!codex) {
     log(`    ⚠️ 未找到 codex 可执行文件（PATH 或 ChatGPT.app），跳过插件安装`);
   } else if (dryRun) {
-    log(`    将执行: ${codex} plugin marketplace add ${join(checkout, "harness")}`);
+    log(
+      `    将执行: ${codex} plugin marketplace add ${join(checkout, "harness")}`,
+    );
     log(`    将执行: ${codex} plugin add ${PLUGIN_NAME}@${marketplace}`);
   } else {
     for (const args of [
@@ -349,7 +385,9 @@ async function initCodex({ env, home, checkout, dryRun, log }) {
     ]) {
       const r = spawnSync(codex, args, { encoding: "utf-8", timeout: 30_000 });
       const ok = r.status === 0;
-      log(`    ${ok ? "✅" : "⚠️"} codex ${args.join(" ")}${ok ? "" : ` → ${(r.stderr || r.stdout || "").trim().slice(0, 200)}`}`);
+      log(
+        `    ${ok ? "✅" : "⚠️"} codex ${args.join(" ")}${ok ? "" : ` → ${(r.stderr || r.stdout || "").trim().slice(0, 200)}`}`,
+      );
     }
   }
 
@@ -357,7 +395,9 @@ async function initCodex({ env, home, checkout, dryRun, log }) {
   if (dryRun) {
     log(`    将导入原生记忆 ${imported.total} 条（dry-run 未发送）`);
   } else {
-    log(`    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`);
+    log(
+      `    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`,
+    );
   }
   if (imported.unreachable) {
     log(`    ⚠️ 记忆服务不可达，搬家未完成——暂不关闭原生记忆`);
@@ -370,9 +410,12 @@ async function initCodex({ env, home, checkout, dryRun, log }) {
   if (next === cur) {
     log(`    config.toml [memories] 已关闭`);
   } else if (dryRun) {
-    log(`    将在 ${tomlPath} 的 [memories] 中设置 generate_memories=false / use_memories=false`);
+    log(
+      `    将在 ${tomlPath} 的 [memories] 中设置 generate_memories=false / use_memories=false`,
+    );
   } else {
-    if (existsSync(tomlPath)) backupCopyOnce(home, "codex", tomlPath, "config.toml", log);
+    if (existsSync(tomlPath))
+      backupCopyOnce(home, "codex", tomlPath, "config.toml", log);
     writeFileSync(tomlPath, next, "utf-8");
     log(`    config.toml [memories] → 已关闭`);
   }
@@ -389,7 +432,9 @@ async function initCodex({ env, home, checkout, dryRun, log }) {
     log(`    写入 ${rulesPath}（flaremo 命令免审批）`);
   }
 
-  log(`    人工动作：在 codex CLI 中运行 /hooks，信任 flaremo-memory 的 hook 定义（一次性）`);
+  log(
+    `    人工动作：在 codex CLI 中运行 /hooks，信任 flaremo-memory 的 hook 定义（一次性）`,
+  );
 }
 
 async function initAntigravity({ env, home, checkout, dryRun, log }) {
@@ -414,7 +459,9 @@ async function initPi({ env, home, checkout, dryRun, log }) {
   if (dryRun) {
     log(`    将导入 pi-hermes 原生记忆 ${imported.total} 条（dry-run 未发送）`);
   } else {
-    log(`    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`);
+    log(
+      `    原生记忆导入: ${imported.sent}/${imported.total} 条已入账${imported.skipped.length ? `，跳过 ${imported.skipped.length}` : ""}`,
+    );
   }
   if (imported.unreachable) {
     log(`    ⚠️ 记忆服务不可达，搬家未完成——暂不摘除 pi-hermes-memory`);
@@ -434,7 +481,9 @@ async function initPi({ env, home, checkout, dryRun, log }) {
       ...settings,
       packages: packages.filter((p) => p !== "npm:pi-hermes-memory"),
     });
-    log(`    settings.json → 已摘除 npm:pi-hermes-memory（数据文件保留在 ~/.pi/agent/pi-hermes-memory）`);
+    log(
+      `    settings.json → 已摘除 npm:pi-hermes-memory（数据文件保留在 ~/.pi/agent/pi-hermes-memory）`,
+    );
   }
   log(`    人工动作：在 pi 中运行 /reload（或重启会话）加载扩展`);
 }
@@ -463,9 +512,13 @@ export async function doctorCmd({
     const res = await fetch(`${cred.url.replace(/\/+$/, "")}/healthz`, {
       signal: AbortSignal.timeout(3000),
     });
-    log(`3) 连通性: ${res.ok ? "✅ 服务可达" : `⚠️ /healthz 返回 ${res.status}`}`);
+    log(
+      `3) 连通性: ${res.ok ? "✅ 服务可达" : `⚠️ /healthz 返回 ${res.status}`}`,
+    );
   } catch (error) {
-    log(`3) 连通性: ❌ 无法连接 (${error instanceof Error ? error.message : error})`);
+    log(
+      `3) 连通性: ❌ 无法连接 (${error instanceof Error ? error.message : error})`,
+    );
     problems += 1;
   }
 
@@ -476,7 +529,12 @@ export async function doctorCmd({
         "Content-Type": "application/json",
         ...(cred.pat ? { Authorization: `Bearer ${cred.pat}` } : {}),
       },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/list",
+        params: {},
+      }),
       signal: AbortSignal.timeout(3000),
     });
     if (res.status === 401 || res.status === 403) {
@@ -484,11 +542,15 @@ export async function doctorCmd({
       problems += 1;
     } else {
       const data = await res.json().catch(() => null);
-      const n = Array.isArray(data?.result?.tools) ? data.result.tools.length : "?";
+      const n = Array.isArray(data?.result?.tools)
+        ? data.result.tools.length
+        : "?";
       log(`4) 鉴权: ✅ PAT 有效（${n} 个记忆工具）`);
     }
   } catch (error) {
-    log(`4) 鉴权: ❌ 校验失败 (${error instanceof Error ? error.message : error})`);
+    log(
+      `4) 鉴权: ❌ 校验失败 (${error instanceof Error ? error.message : error})`,
+    );
     problems += 1;
   }
 
@@ -498,7 +560,9 @@ export async function doctorCmd({
   const zPluginDir = join(checkout, "harness", "zcode");
   const zOk = (zcodeCfg?.plugins?.dirs ?? []).includes(zPluginDir);
   const zSetting = readJsonFile(join(zcodeHome(env), "v2", "setting.json"));
-  log(`${n++}) ZCode: ${existsSync(zcodeHome(env)) ? (zOk ? "✅ 插件目录已注册" : "⚠️ plugins.dirs 未包含 harness/zcode") : "ℹ️ 未安装"}；原生记忆 memoryEnabled=${zSetting?.memoryEnabled ?? "?"}`);
+  log(
+    `${n++}) ZCode: ${existsSync(zcodeHome(env)) ? (zOk ? "✅ 插件目录已注册" : "⚠️ plugins.dirs 未包含 harness/zcode") : "ℹ️ 未安装"}；原生记忆 memoryEnabled=${zSetting?.memoryEnabled ?? "?"}`,
+  );
   if (existsSync(zcodeHome(env)) && !zOk) problems += 1;
 
   // codex
@@ -524,9 +588,12 @@ export async function doctorCmd({
   const agyLink = join(geminiHome(env), "config", "plugins", PLUGIN_NAME);
   let agyOk = false;
   try {
-    agyOk = lstatSync(agyLink).isSymbolicLink() || lstatSync(agyLink).isDirectory();
+    agyOk =
+      lstatSync(agyLink).isSymbolicLink() || lstatSync(agyLink).isDirectory();
   } catch {}
-  log(`${n++}) Antigravity: ${existsSync(join(geminiHome(env), "config")) ? (agyOk ? "✅ 插件已挂载" : "⚠️ ~/.gemini/config/plugins/flaremo-memory 缺失") : "ℹ️ 未安装"}`);
+  log(
+    `${n++}) Antigravity: ${existsSync(join(geminiHome(env), "config")) ? (agyOk ? "✅ 插件已挂载" : "⚠️ ~/.gemini/config/plugins/flaremo-memory 缺失") : "ℹ️ 未安装"}`,
+  );
 
   // pi
   const piLink = join(piHome(env), "extensions", "flaremo-memory.ts");
@@ -535,13 +602,16 @@ export async function doctorCmd({
     piOk = lstatSync(piLink).isSymbolicLink() || lstatSync(piLink).isFile();
   } catch {}
   const piSettings = readJsonFile(join(piHome(env), "settings.json"));
-  const hermesOn = Array.isArray(piSettings?.packages) && piSettings.packages.includes("npm:pi-hermes-memory");
+  const hermesOn =
+    Array.isArray(piSettings?.packages) &&
+    piSettings.packages.includes("npm:pi-hermes-memory");
   log(
     `${n++}) Pi: ${existsSync(piHome(env)) ? (piOk ? "✅ 扩展已挂载" : "⚠️ ~/.pi/agent/extensions/flaremo-memory.ts 缺失") : "ℹ️ 未安装"}；pi-hermes-memory ${hermesOn ? "仍在启用" : "已摘除/未启用"}`,
   );
   if (existsSync(piHome(env))) {
     if (!piOk) problems += 1;
-    if (hermesOn) log(`    提示：pi-hermes-memory 仍在启用，双记忆系统并存会互相污染`);
+    if (hermesOn)
+      log(`    提示：pi-hermes-memory 仍在启用，双记忆系统并存会互相污染`);
   }
 
   // hook wrapper + PATH symlink
@@ -551,7 +621,9 @@ export async function doctorCmd({
   try {
     binOk = lstatSync(binLink).isSymbolicLink();
   } catch {}
-  log(`${n++}) 本地: ${wrapperOk ? "✅" : "❌"} flaremo-hook；${binOk ? "✅" : "❌"} ${binLink} 软链`);
+  log(
+    `${n++}) 本地: ${wrapperOk ? "✅" : "❌"} flaremo-hook；${binOk ? "✅" : "❌"} ${binLink} 软链`,
+  );
   if (!wrapperOk || !binOk) problems += 1;
 
   log(problems === 0 ? "\n全部就绪。" : `\n${problems} 项需要处理。`);
@@ -589,7 +661,11 @@ export async function uninstallCmd({
     if (harness === "zcode") {
       const configPath = join(zcodeHome(env), "cli", "config.json");
       restore("zcode", "cli-config.json", configPath);
-      restore("zcode", "v2-setting.json", join(zcodeHome(env), "v2", "setting.json"));
+      restore(
+        "zcode",
+        "v2-setting.json",
+        join(zcodeHome(env), "v2", "setting.json"),
+      );
     }
     if (harness === "codex") {
       const codex = resolveCodexBin(env);
@@ -598,11 +674,18 @@ export async function uninstallCmd({
           ["plugin", "remove", PLUGIN_NAME],
           ["plugin", "marketplace", "remove", marketplaceName(checkoutRoot())],
         ]) {
-          const r = spawnSync(codex, args, { encoding: "utf-8", timeout: 30_000 });
-          log(`    codex ${args.join(" ")} → ${r.status === 0 ? "✅" : "⚠️ " + (r.stderr || "").slice(0, 160)}`);
+          const r = spawnSync(codex, args, {
+            encoding: "utf-8",
+            timeout: 30_000,
+          });
+          log(
+            `    codex ${args.join(" ")} → ${r.status === 0 ? "✅" : `⚠️ ${(r.stderr || "").slice(0, 160)}`}`,
+          );
         }
       } else if (codex) {
-        log(`    将执行 codex plugin remove ${PLUGIN_NAME} / marketplace remove ${marketplaceName(checkoutRoot())}`);
+        log(
+          `    将执行 codex plugin remove ${PLUGIN_NAME} / marketplace remove ${marketplaceName(checkoutRoot())}`,
+        );
       }
       restore("codex", "config.toml", join(codexHome(env), "config.toml"));
       const rulesPath = join(codexHome(env), "rules", "flaremo.rules");
@@ -625,7 +708,11 @@ export async function uninstallCmd({
           }
         }
       } catch {}
-      const bak = join(backupDir(home), "antigravity", `${PLUGIN_NAME}-replaced`);
+      const bak = join(
+        backupDir(home),
+        "antigravity",
+        `${PLUGIN_NAME}-replaced`,
+      );
       if (existsSync(bak)) {
         if (dryRun) log(`    将还原原有插件目录 ${link}`);
         else {
@@ -694,15 +781,23 @@ export async function updateCmd({
     encoding: "utf-8",
     timeout: 60_000,
   });
-  log(`git pull: ${pull.status === 0 ? (pull.stdout || "").trim() || "已是最新" : `⚠️ ${(pull.stderr || "").trim().slice(0, 200)}`}`);
+  log(
+    `git pull: ${pull.status === 0 ? (pull.stdout || "").trim() || "已是最新" : `⚠️ ${(pull.stderr || "").trim().slice(0, 200)}`}`,
+  );
 
   const codex = resolveCodexBin(env);
   if (codex) {
-    const r = spawnSync(codex, ["plugin", "marketplace", "upgrade", marketplaceName(checkout)], {
-      encoding: "utf-8",
-      timeout: 30_000,
-    });
-    log(`codex marketplace upgrade: ${r.status === 0 ? "✅" : `⚠️ ${(r.stderr || "").trim().slice(0, 160)}`}`);
+    const r = spawnSync(
+      codex,
+      ["plugin", "marketplace", "upgrade", marketplaceName(checkout)],
+      {
+        encoding: "utf-8",
+        timeout: 30_000,
+      },
+    );
+    log(
+      `codex marketplace upgrade: ${r.status === 0 ? "✅" : `⚠️ ${(r.stderr || "").trim().slice(0, 160)}`}`,
+    );
   }
   writeHookWrapper(home, { log });
   log("完成。");

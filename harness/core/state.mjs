@@ -3,16 +3,16 @@
 // torn file behind. No locking: single-writer CLI + atomic rename is enough.
 
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
   cacheDir,
@@ -69,7 +69,9 @@ export function readJsonl(path) {
 const SESSION_SAFE = /[^a-zA-Z0-9_-]/g;
 
 export function sessionFilePath(home, harness, sessionId) {
-  const id = String(sessionId || "unknown").replace(SESSION_SAFE, "_").slice(0, 128);
+  const id = String(sessionId || "unknown")
+    .replace(SESSION_SAFE, "_")
+    .slice(0, 128);
   return join(sessionsDir(home), `${harness}-${id}.json`);
 }
 
@@ -78,7 +80,10 @@ export function loadSession(home, harness, sessionId) {
 }
 
 export function saveSession(home, session) {
-  atomicWriteJson(sessionFilePath(home, session.harness, session.sessionId), session);
+  atomicWriteJson(
+    sessionFilePath(home, session.harness, session.sessionId),
+    session,
+  );
 }
 
 export function newSession(harness, sessionId, projectKey) {

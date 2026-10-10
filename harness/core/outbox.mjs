@@ -93,15 +93,19 @@ function acquireFlushLock(home) {
 export function sweepSessions(home, { now = Date.now() } = {}) {
   for (const { path, state } of listSessions(home)) {
     const lastActivity = Date.parse(state.lastEventAt || state.startedAt || "");
-    const age = Number.isNaN(lastActivity) ? fileAgeMs(path, now) : now - lastActivity;
+    const age = Number.isNaN(lastActivity)
+      ? fileAgeMs(path, now)
+      : now - lastActivity;
     if (age !== null && age > SESSION_DELETE_MS) {
       deleteFile(path);
       continue;
     }
-    const idle = state.ended === true || (age !== null && age > SESSION_STALE_MS);
+    const idle =
+      state.ended === true || (age !== null && age > SESSION_STALE_MS);
     const wroteAt = lastWriteFor(home, state.projectKey);
     const wroteAfterStart =
-      wroteAt !== null && Date.parse(wroteAt) > Date.parse(state.startedAt || "");
+      wroteAt !== null &&
+      Date.parse(wroteAt) > Date.parse(state.startedAt || "");
     if (
       state.checkpointed ||
       (state.turns ?? 0) < 3 ||
@@ -122,7 +126,9 @@ export function sweepSessions(home, { now = Date.now() } = {}) {
         scope_type: projectKey ? "project" : "global",
         scope_key: projectKey ?? undefined,
         summary,
-        items: [{ content: summary, type: "semantic", kind: "fact", importance: 50 }],
+        items: [
+          { content: summary, type: "semantic", kind: "fact", importance: 50 },
+        ],
       },
     });
     state.checkpointed = true;
@@ -143,13 +149,14 @@ export async function flushOutbox(
     budgetMs = 30_000,
     timeoutMs = 8_000,
     sweep = true,
+    now = Date.now,
   } = {},
 ) {
   const release = acquireFlushLock(home);
   if (!release) return { skipped: true };
 
   try {
-    const started = Date.now();
+    const started = now();
     if (sweep) {
       try {
         sweepSessions(home);
@@ -162,19 +169,32 @@ export async function flushOutbox(
     const sent = [];
     const failed = [];
     for (const entry of pending) {
-      if (Date.now() - started > budgetMs) {
+      const remainingMs = budgetMs - (now() - started);
+      if (remainingMs <= 0) {
         keep.push(entry);
         continue;
       }
-      const res = await requestImpl(entry.tool, entry.args, { timeoutMs, env, home });
+      const res = await requestImpl(entry.tool, entry.args, {
+        timeoutMs: Math.min(timeoutMs, remainingMs),
+        env,
+        home,
+      });
       if (res.ok) {
         sent.push(entry);
       } else if (res.toolError || (res.status >= 400 && res.status < 500)) {
-        failed.push({ ...entry, failedAt: new Date().toISOString(), error: res.error });
+        failed.push({
+          ...entry,
+          failedAt: new Date().toISOString(),
+          error: res.error,
+        });
       } else {
         entry.attempts = (entry.attempts ?? 0) + 1;
         if (entry.attempts >= MAX_ATTEMPTS) {
-          failed.push({ ...entry, failedAt: new Date().toISOString(), error: res.error ?? "max attempts" });
+          failed.push({
+            ...entry,
+            failedAt: new Date().toISOString(),
+            error: res.error ?? "max attempts",
+          });
         } else {
           keep.push(entry);
         }
@@ -191,7 +211,11 @@ export async function flushOutbox(
     }
 
     if (pending.length > 0 || keep.length > 0) {
-      atomicWriteFile(pendingPath(home), keep.map((e) => JSON.stringify(e)).join("\n") + (keep.length ? "\n" : ""));
+      atomicWriteFile(
+        pendingPath(home),
+        keep.map((e) => JSON.stringify(e)).join("\n") +
+          (keep.length ? "\n" : ""),
+      );
     }
     for (const entry of failed) {
       appendJsonl(failedPath(home), entry);

@@ -4,12 +4,10 @@
 
 ## 质量门禁
 
-提交和发布前执行：
+提交和发布前按改动选择定向检查：
 
 ```bash
 pnpm format:check
-pnpm verify
-pnpm deploy:dry-run
 ```
 
 `pnpm format:check` 会执行 Biome 格式和 lint 检查，不修改文件。自动修复格式使用：
@@ -25,17 +23,19 @@ pnpm format
 - production build
 - Playwright E2E
 
+`pnpm verify` 是完整门禁，只在维护者明确要求时运行；日常提交和发布默认不运行。涉及 Wrangler、D1、R2、Access 或部署配置的改动，再运行 `pnpm deploy:dry-run`。
+
 `pnpm deploy:dry-run` 会构建前端并让 Wrangler 验证 Worker、Assets、D1、R2 和变量绑定。
 
 ## 生产部署
 
-生产部署是**手动操作**，项目刻意不配置 CI 或自动部署：发布由维护者在本地执行。
+生产部署由维护者在本地手动执行；上游仓库不配置 push 或 CI 自动生产部署。现有自托管 fork/deployment repository 可通过 `deploy-cloudflare.yml` 的受控 `workflow_dispatch` 手动执行，不改变上游发布策略。
 
 ```bash
 pnpm run deploy
 ```
 
-`pnpm run deploy` 会先跑部署 preflight，再构建前端、应用尚未执行的远端 D1 migrations，最后通过 `wrangler deploy` 发布 Worker。发布前的门禁仍是 `pnpm verify` 和 `pnpm deploy:dry-run`（见「质量门禁」）。PR 分支不触发任何自动构建或部署。
+`pnpm run deploy` 会先跑部署 preflight，再构建前端、应用尚未执行的远端 D1 migrations，最后通过 `wrangler deploy` 发布 Worker。发布前按改动运行定向检查；需要验证 Cloudflare 打包时再运行 `pnpm deploy:dry-run`。PR 分支不触发任何自动构建或部署。
 
 ## 数据库迁移
 

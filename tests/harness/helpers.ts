@@ -19,7 +19,12 @@ export interface FakeServer {
   server: Server;
   close: () => Promise<void>;
   /** Mutate behavior between requests. */
-  mode: { status: number; payload?: unknown; hang?: boolean };
+  mode: {
+    status: number;
+    payload?: unknown;
+    rawBody?: string;
+    delayMs?: number;
+  };
 }
 
 /** A local JSON-RPC endpoint that mimics /memory/mcp. */
@@ -27,7 +32,12 @@ export async function fakeMcpServer(
   responses: Record<string, unknown> = {},
 ): Promise<FakeServer> {
   const calls: FakeCall[] = [];
-  const mode = { status: 200, payload: undefined as unknown };
+  const mode = {
+    status: 200,
+    payload: undefined as unknown,
+    rawBody: undefined as string | undefined,
+    delayMs: 0,
+  };
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
@@ -51,13 +61,21 @@ export async function fakeMcpServer(
           ? mode.payload
           : (responses[tool] ?? { ok: true });
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(
+      const responseBody =
+        mode.rawBody ??
         JSON.stringify({
           jsonrpc: "2.0",
           id: parsed?.id ?? 1,
           result: { structuredContent: data },
-        }),
-      );
+        });
+      if (mode.delayMs) {
+        // Make the header/body boundary observable so timeout tests exercise
+        // res.text(), rather than a timeout waiting for fetch() headers.
+        res.flushHeaders();
+        setTimeout(() => res.end(responseBody), mode.delayMs);
+      } else {
+        res.end(responseBody);
+      }
     });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

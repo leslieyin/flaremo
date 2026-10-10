@@ -104,6 +104,11 @@
   padding: 13px 23px;
   font-size: 14px;
 }
+.pm-select-trigger svg {
+  flex: 0 0 auto;
+  color: #8b6552;
+  transition: transform 0.15s ease;
+}
 .pm-sidebar button svg {
   flex: 0 0 auto;
 }
@@ -180,9 +185,6 @@
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.pm-title-line .pm-phase {
-  flex: 0 0 auto;
 }
 .pm-project-title > button {
   flex: 0 0 auto;
@@ -263,11 +265,6 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.pm-select-trigger svg {
-  flex: 0 0 auto;
-  color: #8b6552;
-  transition: transform 0.15s ease;
-}
 .pm-select-trigger svg.is-open {
   transform: rotate(180deg);
 }
@@ -340,6 +337,13 @@
   position: relative;
   min-width: 100px;
 }
+.pm-source summary {
+  color: #4c443d;
+  font-weight: 650;
+}
+.pm-exceptions summary {
+  font-weight: 650;
+}
 .pm-filter-panel > summary {
   list-style: none;
   border: 1px solid #cfc7be;
@@ -359,34 +363,34 @@
 .pm-filter-panel > summary svg {
   color: #9a7060;
 }
+.pm-source summary svg,
+.pm-exceptions > summary svg,
+.pm-progress details > summary svg {
+  color: #9a7060;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
 .pm-filter-panel[open] > summary svg,
-.pm-progress details[open] > summary svg,
-.pm-source details[open] > summary svg,
 .pm-source[open] > summary svg,
-.pm-exceptions[open] > summary svg {
+.pm-exceptions[open] > summary svg,
+.pm-progress details[open] > summary svg,
+.pm-source details[open] > summary svg {
   transform: rotate(180deg);
 }
-.pm-filter-panel > summary::-webkit-details-marker,
-.pm-progress details > summary::-webkit-details-marker,
 .pm-source summary::-webkit-details-marker,
-.pm-exceptions > summary::-webkit-details-marker {
+.pm-exceptions > summary::-webkit-details-marker,
+.pm-filter-panel > summary::-webkit-details-marker,
+.pm-progress details > summary::-webkit-details-marker {
   display: none;
 }
-.pm-progress details > summary,
 .pm-source summary,
-.pm-exceptions > summary {
+.pm-exceptions > summary,
+.pm-progress details > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   list-style: none;
-}
-.pm-progress details > summary svg,
-.pm-source summary svg,
-.pm-exceptions > summary svg {
-  color: #9a7060;
-  flex: 0 0 auto;
-  transition: transform 0.15s ease;
 }
 .pm-filter-controls {
   position: absolute;
@@ -416,6 +420,42 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.pm-form input,
+.pm-form textarea,
+.pm-form select {
+  width: 100%;
+}
+.pm-form textarea {
+  min-height: 70px;
+}
+.pm-quick-editor input,
+.pm-quick-editor select,
+.pm-quick-editor textarea {
+  width: min(440px, 100%);
+  min-height: 38px;
+  padding: 8px;
+  border: 1px solid #cfc7be;
+  background: white;
+  color: #211d18;
+}
+.pm-dialog > textarea {
+  width: 100%;
+  min-height: 160px;
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #cfc7be;
+}
+.pm-progress textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+}
+.pm-progress details input,
+.pm-progress details textarea {
+  display: block;
+  margin-top: 8px;
+  width: 100%;
 }
 .pm-filter-controls .pm-group-toggle input {
   width: auto;
@@ -495,6 +535,9 @@
   font-weight: 650;
   white-space: nowrap;
 }
+.pm-title-line .pm-phase {
+  flex: 0 0 auto;
+}
 .pm-phase-active {
   background: #e6f1e9;
   color: #245d39;
@@ -542,17 +585,24 @@
   margin: 0 0 19px;
   font-size: 18px;
 }
-.pm-card h2 small {
-  color: var(--pm-muted);
-  font-size: 11px;
-  font-weight: 400;
-}
 .pm-columns {
   display: block;
   order: 6;
 }
 .pm-detailnav {
   order: 0;
+}
+.pm-subtle {
+  color: var(--pm-muted);
+  font-size: 12px;
+}
+.pm-exceptions {
+  margin: 25px 0;
+  padding: 14px 16px;
+  border: 1px solid #e8d7c8;
+  background: #fff9f5;
+  color: #8e4829;
+  font-size: 12px;
 }
 .pm-content > .pm-title {
   order: 1;
@@ -627,16 +677,6 @@
   font-size: 12px;
   color: #534a42;
 }
-.pm-quick-editor input,
-.pm-quick-editor select,
-.pm-quick-editor textarea {
-  width: min(440px, 100%);
-  min-height: 38px;
-  padding: 8px;
-  border: 1px solid #cfc7be;
-  background: white;
-  color: #211d18;
-}
 .pm-quick-editor p[role="alert"] {
   margin: 0;
   color: #ab321e;
@@ -700,10 +740,6 @@
   background: #faf9f6;
   font-size: 12px;
   color: #655c53;
-}
-.pm-source summary {
-  color: #4c443d;
-  font-weight: 650;
 }
 .pm-source .pm-card {
   margin-bottom: 0;
@@ -777,23 +813,12 @@
   color: #9c3e17;
   font-weight: 650;
 }
-.pm-progress textarea {
-  width: 100%;
-  min-height: 90px;
-  resize: vertical;
-}
 .pm-progress > .pm-select-trigger {
   width: min(200px, 100%);
 }
 .pm-progress details {
   color: var(--pm-muted);
   font-size: 12px;
-}
-.pm-progress details input,
-.pm-progress details textarea {
-  display: block;
-  margin-top: 8px;
-  width: 100%;
 }
 .pm-progress button {
   justify-self: start;
@@ -815,10 +840,6 @@
 .pm-update .pm-source {
   display: block;
   margin: 12px 0;
-}
-.pm-subtle {
-  color: var(--pm-muted);
-  font-size: 12px;
 }
 .pm-upload-control {
   position: relative;
@@ -945,6 +966,13 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px 18px;
 }
+.pm-form-error {
+  padding: 12px 14px;
+  border: 1px solid #ce5a34;
+  border-left: 4px solid #c94724;
+  background: #fff1ea;
+  color: #8b2b18;
+}
 .pm-form > h2,
 .pm-form > .pm-form-error,
 .pm-form > .pm-close,
@@ -962,14 +990,6 @@
   font-size: 12px;
   color: #4c443d;
 }
-.pm-form input,
-.pm-form textarea,
-.pm-form select {
-  width: 100%;
-}
-.pm-form textarea {
-  min-height: 70px;
-}
 .pm-field-label {
   display: flex;
   align-items: baseline;
@@ -981,6 +1001,11 @@
   color: var(--pm-muted);
   font-weight: 400;
 }
+.pm-card h2 small {
+  color: var(--pm-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
 .pm-form input[aria-invalid="true"],
 .pm-form select[aria-invalid="true"],
 .pm-form textarea[aria-invalid="true"] {
@@ -990,13 +1015,6 @@
 .pm-field-error {
   color: #b43620;
   font-size: 11px;
-}
-.pm-form-error {
-  padding: 12px 14px;
-  border: 1px solid #ce5a34;
-  border-left: 4px solid #c94724;
-  background: #fff1ea;
-  color: #8b2b18;
 }
 .pm-form-error:focus {
   outline: 2px solid var(--pm-orange);
@@ -1040,24 +1058,6 @@
   border: 1px solid #c77444;
   background: #fff5e9;
   box-shadow: 0 10px 30px #09080730;
-}
-.pm-dialog > textarea {
-  width: 100%;
-  min-height: 160px;
-  margin: 10px 0;
-  padding: 10px;
-  border: 1px solid #cfc7be;
-}
-.pm-exceptions {
-  margin: 25px 0;
-  padding: 14px 16px;
-  border: 1px solid #e8d7c8;
-  background: #fff9f5;
-  color: #8e4829;
-  font-size: 12px;
-}
-.pm-exceptions summary {
-  font-weight: 650;
 }
 .pm-exceptions .pm-card {
   background: white;
@@ -1364,6 +1364,15 @@
   --pm-muted: var(--muted-foreground);
   --pm-peach: var(--accent);
 }
+.pm-select-menu {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border);
+}
+.pm-select-menu [role="option"].active {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
 .team-project-workbench .pm-list-head,
 .team-project-workbench .pm-group-heading,
 .team-project-workbench .pm-filter-panel > summary,
@@ -1469,13 +1478,4 @@
 .team-project-workbench .pm-phase-completed {
   background: color-mix(in oklab, var(--info) 23%, var(--card));
   color: var(--foreground);
-}
-.pm-select-menu {
-  background: var(--popover);
-  color: var(--popover-foreground);
-  border-color: var(--border);
-}
-.pm-select-menu [role="option"].active {
-  background: var(--accent);
-  color: var(--accent-foreground);
 }

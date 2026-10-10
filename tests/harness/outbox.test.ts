@@ -50,6 +50,40 @@ describe("outbox flush", () => {
     expect(readJsonl(pendingPath(home))).toEqual([]);
   });
 
+  it("caps request timeout at the remaining flush budget", async () => {
+    const home = tmpHome();
+    const env = makeEnv(home, "http://127.0.0.1:1");
+    enqueueOutbox(home, { id: "budget-1", tool: "memory_remember", args: {} });
+    enqueueOutbox(home, { id: "budget-2", tool: "memory_remember", args: {} });
+    let current = 0;
+    const timeouts: number[] = [];
+    const requestImpl = async (
+      _tool: string,
+      _args: Record<string, unknown>,
+      options: { timeoutMs: number },
+    ) => {
+      timeouts.push(options.timeoutMs);
+      current = 50;
+      return { ok: true, status: 200, data: {} };
+    };
+
+    const result = await flushOutbox(home, {
+      env,
+      requestImpl,
+      budgetMs: 50,
+      timeoutMs: 8_000,
+      now: () => current,
+      sweep: false,
+    });
+
+    expect(result.sent).toBe(1);
+    expect(result.kept).toBe(1);
+    expect(timeouts).toEqual([50]);
+    expect(
+      readJsonl(pendingPath(home)).map((entry: { id: string }) => entry.id),
+    ).toEqual(["budget-2"]);
+  });
+
   it("moves 4xx / tool errors to failed.jsonl", async () => {
     const home = tmpHome();
     const env = makeEnv(home, "http://127.0.0.1:1");

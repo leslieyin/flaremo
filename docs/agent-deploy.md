@@ -18,7 +18,7 @@
 
 ## 禁止事项
 
-- 不要新增 CI workflow 或部署自动化。`ci.yml` 是唯一的 check workflow（format / lint / typecheck / 单元测试）；`flaremo-update.yml` 只在用户部署仓库中准备上游升级 PR。GitHub Actions 永远不做生产部署器。
+- 不要新增 CI workflow 或部署自动化。现有 `.github/workflows/deploy-cloudflare.yml` 是自托管 fork/deployment repository 的受控例外：只响应 `workflow_dispatch`，不在 push 时部署，并且上游 `realchendahuang/FlareMo` 不运行该 job。`ci.yml` 负责 check（format / lint / typecheck / 单元测试），`flaremo-update.yml` 只在用户部署仓库中准备上游升级 PR；不要把上游或常规仓库改成 push/CI 自动生产部署。
 - 全量门禁 `pnpm verify` 仅在维护者明确要求时运行；常规部署直接执行本地部署脚本（`deploy-kosx.mjs` 默认不跑 verify，需要时用 `--verify`）。
 - 不要把 `Temp/`、`node_modules/`、`dist/`、`.wrangler/` 提交。
 - 不要新增绕开 Better Auth 的登录、共享密码或第二套 Bearer token；机器访问使用已撤销能力的 `memos_pat_` PAT。

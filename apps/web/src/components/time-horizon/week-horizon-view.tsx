@@ -124,8 +124,10 @@ export function WeekHorizonPureView({
             <div className="flex flex-col gap-[2px]" key={`col-${d.key}`}>
               {hours.map((h) => {
                 const count = countMap.get(`${d.key}_${h}`) ?? 0;
+                const tip = `${d.key} ${String(h).padStart(2, "0")}:00 · ${t("explorer.notesCount", { count })}`;
                 return (
                   <button
+                    aria-label={tip}
                     className={cn(
                       "h-[7px] w-full rounded-[1.5px] transition-all cursor-pointer active:scale-95",
                       heatmapColor(count),
@@ -133,16 +135,15 @@ export function WeekHorizonPureView({
                       count <= 0 &&
                         "hover:bg-muted-foreground/25 dark:hover:bg-muted/45",
                       isLoading && "animate-pulse",
+                      "outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
                       "hover:scale-110 hover:z-10",
                     )}
                     key={`${d.key}_${h}`}
                     type="button"
                     onClick={() => onDrillToDay(d.key)}
-                    onMouseEnter={() =>
-                      onHoverTip(
-                        `${d.key} ${String(h).padStart(2, "0")}:00 · ${t("explorer.notesCount", { count })}`,
-                      )
-                    }
+                    onFocus={() => onHoverTip(tip)}
+                    onBlur={() => onHoverTip(null)}
+                    onMouseEnter={() => onHoverTip(tip)}
                     onMouseLeave={() => onHoverTip(null)}
                   />
                 );

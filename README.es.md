@@ -76,6 +76,7 @@ FlareMo responde a una pregunta más simple: **¿Es posible tener una base de co
 
 ### 5. Colaboración en equipo y visibilidad en 3 niveles
 - **Gobernanza por roles**: Roles `owner`, `admin` y `member`. Los administradores invitan a los miembros mediante enlaces de activación de un solo uso (cada miembro elige su propia contraseña; los administradores nunca manejan credenciales en texto plano).
+- **Banco de proyectos del equipo**: `/team-projects` reúne todos los proyectos del equipo en una sola vista — responsable, estado, avance actual, siguiente paso y fecha de seguimiento — y abre una página de detalle para mantener el resumen, registrar avances y conclusiones de reuniones, y subir archivos de referencia. Un proyecto es un memo del equipo normal reconocido por un bloque de metadatos `kosx-pm` en su cuerpo, así que las notas que no son proyectos quedan intactas en la línea de tiempo.
 - **3 niveles de visibilidad**:
   - 🔒 **Privado**: Solo visible para el autor.
   - 👥 **Equipo**: Lectura compartida con los miembros activos del equipo.

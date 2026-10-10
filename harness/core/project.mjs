@@ -11,10 +11,14 @@ export function resolveProject(dir, env = process.env) {
   if (!dir) return null;
   dir = String(dir).replace(/\/+$/, "") || dir;
   try {
-    const out = execFileSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], {
-      timeout: 1000,
-      stdio: ["ignore", "pipe", "ignore"],
-    });
+    const out = execFileSync(
+      "git",
+      ["-C", dir, "rev-parse", "--show-toplevel"],
+      {
+        timeout: 1000,
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
     const top = out.toString().trim();
     // Whitelist-mode env repos (e.g. ~/code ignoring `/*` except AGENTS.md)
     // claim every subdir as their toplevel; if the dir is ignored by that
@@ -42,7 +46,10 @@ function isIgnoredByRepo(dir) {
 }
 
 export function projectAnchor(projectKey) {
-  return createHash("sha256").update(projectKey ?? "global").digest("hex").slice(0, 16);
+  return createHash("sha256")
+    .update(projectKey ?? "global")
+    .digest("hex")
+    .slice(0, 16);
 }
 
 export function sha256(text) {
