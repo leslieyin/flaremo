@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extractTags, formatMemoRelativeTime, formatMemoTime } from "./memo";
+import {
+  extractTags,
+  formatMemoRelativeTime,
+  formatMemoTime,
+  memoTitle,
+} from "./memo";
 
 // A fixed locale keeps the assertions about the formatter's decision (is the
 // year spelled out), not about the runner's default locale.
@@ -87,5 +92,57 @@ describe("extractTags", () => {
 
   it("deduplicates repeated tags", () => {
     expect(extractTags("#a #a #b/a")).toEqual(["a", "b/a"]);
+  });
+});
+
+describe("memoTitle", () => {
+  it("strips the block syntax that reads as noise on one truncated line", () => {
+    expect(memoTitle("## 阅读笔记：The Art of Noticing")).toBe(
+      "阅读笔记：The Art of Noticing",
+    );
+    expect(memoTitle("- [ ] 依赖漏洞排期")).toBe("依赖漏洞排期");
+    expect(memoTitle("> 简约不是少，而是没有多余。")).toBe(
+      "简约不是少，而是没有多余。",
+    );
+    expect(memoTitle("1. 每天记录一件小事")).toBe("每天记录一件小事");
+  });
+
+  it("skips a leading blank line and a pure tag line", () => {
+    expect(memoTitle("\n\n#产品 #删减")).toBe("");
+    expect(memoTitle("#产品 #删减\n深夜想法：删掉比优化更有价值。")).toBe(
+      "深夜想法：删掉比优化更有价值。",
+    );
+    // A heading marker followed by a space is a heading, not a tag run.
+    expect(memoTitle("# 第三轮性能收口")).toBe("第三轮性能收口");
+  });
+
+  it("truncates long lines and leaves short ones intact", () => {
+    const long = "长".repeat(100);
+    expect(memoTitle(long, 10)).toBe(`${"长".repeat(10)}…`);
+    expect(memoTitle("短句")).toBe("短句");
+  });
+
+  it("returns an empty string for a memo with no prose", () => {
+    expect(memoTitle("")).toBe("");
+    expect(memoTitle("```\ncode only\n```")).toBe("");
+  });
+});
+
+describe("memoTitle inline markup", () => {
+  it("drops emphasis, code and strikethrough delimiters", () => {
+    expect(
+      memoTitle("深夜想法：**如果一个功能没人用，删掉它更有价值。**"),
+    ).toBe("深夜想法：如果一个功能没人用，删掉它更有价值。");
+    expect(memoTitle("用 `d1IdsPerStatement` 分块")).toBe(
+      "用 d1IdsPerStatement 分块",
+    );
+    expect(memoTitle("~~作废~~ 改走手动部署")).toBe("作废 改走手动部署");
+    expect(memoTitle("**整个标题都是粗体**")).toBe("整个标题都是粗体");
+  });
+
+  it("keeps link text and drops the URL", () => {
+    expect(memoTitle("参考 [设计稿](https://example.com/a) 的第三节")).toBe(
+      "参考 设计稿 的第三节",
+    );
   });
 });
