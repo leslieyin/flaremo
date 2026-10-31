@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowLeftIcon, BrainIcon, FileTextIcon } from "lucide-react";
+import { ArrowLeftIcon, BrainIcon, FileTextIcon, PinIcon } from "lucide-react";
 import type { Memo, MemoContext, RelatedMemo } from "@/api";
 import { QueryErrorState } from "@/components/query-error-state";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,6 @@ export function MemoDetailPage({ memoId }: { memoId: string }) {
         explorer,
       }) => (
         <WorkspacePageHeader
-          contentMaxWidth={768}
           actions={
             <Button
               className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
@@ -248,11 +247,20 @@ function MemoDetail({
             {formatMemoTime(context.memo.display_time, locale)}
             {context.memo.creator_name ? ` · ${context.memo.creator_name}` : ""}
           </CardTitle>
-          <div className="flex flex-wrap gap-2">
-            {context.memo.pinned && <Badge>{t("memo.pinnedBadge")}</Badge>}
-            <Badge variant="outline">
-              {t(`visibility.${context.memo.visibility}`)}
-            </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {context.memo.pinned && (
+              <Badge variant="brand">
+                <PinIcon data-icon="inline-start" />
+                {t("memo.pinnedBadge")}
+              </Badge>
+            )}
+            {/* Private is the default, so only shared notes say so — the
+                same rule as the timeline card. */}
+            {context.memo.visibility !== "private" && (
+              <Badge className="text-muted-foreground" variant="outline">
+                {t(`visibility.${context.memo.visibility}`)}
+              </Badge>
+            )}
             <Button
               disabled={rememberPending}
               size="sm"

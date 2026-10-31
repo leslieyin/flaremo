@@ -1,5 +1,11 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { CircleAlertIcon, InboxIcon, SearchIcon } from "lucide-react";
+import {
+  ArchiveIcon,
+  CircleAlertIcon,
+  InboxIcon,
+  SearchIcon,
+  Trash2Icon,
+} from "lucide-react";
 import {
   lazy,
   memo,
@@ -82,7 +88,11 @@ type MemoListProps = {
   focusedMemoId?: string | null;
   /** Overrides the generic empty-state copy (e.g. semantic search). */
   emptyDescription?: string;
+  /** Which list is empty: picks the icon (archive box, bin, inbox). */
+  emptyIcon?: "all" | "archived" | "trashed";
   emptyTitle?: string;
+  /** Live cards open their comment thread in place. */
+  commentsEnabled?: boolean;
   onClearFilters?: () => void;
   onArchive: (id: string) => void;
   onPin: (id: string, pinned: boolean) => void;
@@ -104,6 +114,7 @@ type MemoListProps = {
 
 type VirtualizedCardsProps = {
   attachmentsByMemo: Map<string, Attachment[]>;
+  commentsEnabled: boolean;
   editingMemoNames: Set<string>;
   focusedMemoId?: string | null;
   isUpdating: boolean;
@@ -147,6 +158,7 @@ type VirtualizedCardsProps = {
  */
 function VirtualizedCards({
   attachmentsByMemo,
+  commentsEnabled,
   editingMemoNames,
   focusedMemoId,
   isUpdating,
@@ -268,6 +280,7 @@ function VirtualizedCards({
               }
               canManage={memo.can_manage === true}
               canGovern={memo.can_govern === true}
+              commentsEnabled={commentsEnabled}
               index={item.index}
               isFocused={focusedMemoId === (memo.id || memo.name)}
               memo={memo}
@@ -327,7 +340,9 @@ export const MemoList = memo(function MemoList({
   searchQuery,
   focusedMemoId,
   emptyDescription,
+  emptyIcon,
   emptyTitle,
+  commentsEnabled = false,
   onClearFilters,
   isUpdating = false,
   isRetrying = false,
@@ -437,11 +452,16 @@ export const MemoList = memo(function MemoList({
     return (
       <Empty className="min-h-64 text-muted-foreground motion-safe:animate-rise">
         <EmptyHeader>
-          <EmptyMedia
-            className="bg-accent text-accent-foreground"
-            variant="icon"
-          >
-            {onClearFilters ? <SearchIcon /> : <InboxIcon />}
+          <EmptyMedia variant="icon">
+            {onClearFilters ? (
+              <SearchIcon />
+            ) : emptyIcon === "archived" ? (
+              <ArchiveIcon />
+            ) : emptyIcon === "trashed" ? (
+              <Trash2Icon />
+            ) : (
+              <InboxIcon />
+            )}
           </EmptyMedia>
           <EmptyTitle>{emptyTitle ?? t("list.emptyTitle")}</EmptyTitle>
           <EmptyDescription>
@@ -488,6 +508,7 @@ export const MemoList = memo(function MemoList({
       {memos.length > VIRTUALIZE_THRESHOLD ? (
         <VirtualizedCards
           attachmentsByMemo={attachmentsByMemo}
+          commentsEnabled={commentsEnabled}
           editingMemoNames={editingMemoNames}
           focusedMemoId={focusedMemoId}
           isUpdating={isUpdating}
@@ -521,6 +542,7 @@ export const MemoList = memo(function MemoList({
               }
               canManage={memo.can_manage === true}
               canGovern={memo.can_govern === true}
+              commentsEnabled={commentsEnabled}
               index={index}
               isFocused={focusedMemoId === (memo.id || memo.name)}
               key={memo.name}

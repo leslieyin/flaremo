@@ -7,9 +7,9 @@ import {
 } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import {
-  getDailyReview,
   getMemoContext,
   getRelatedMemos,
+  getTodayReview,
   listArticles,
   listMemories,
   listProjects,
@@ -18,11 +18,13 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { isRtlLocale, useI18n } from "@/i18n";
 import { todayKey } from "@/lib/calendar-date";
+import { queryKeys } from "@/lib/query-keys";
 import { allTasksQuery, isTaskView, type TaskView } from "@/lib/task-views";
 import { AuthenticatedRoute } from "@/routes/authenticated-route";
 import { indexRoute } from "@/routes/index-route";
 import { rootRoute } from "@/routes/root-route";
 import { RouteLoading } from "@/routes/route-loading";
+import { workspaceRoute } from "@/routes/workspace-route";
 
 /**
  * Route loaders warm query caches without ever blocking navigation: a failed
@@ -108,11 +110,6 @@ const ProjectsPage = lazy(() =>
     default: module.ProjectsPage,
   })),
 );
-const CapturePage = lazy(() =>
-  import("@/pages/capture-page").then((module) => ({
-    default: module.CapturePage,
-  })),
-);
 const ArticlesPage = lazy(() =>
   import("@/pages/articles-page").then((module) => ({
     default: module.ArticlesPage,
@@ -141,17 +138,11 @@ const shareRoute = createRoute({
 
 function MemoDetailRoutePage() {
   const { memoId } = memoRoute.useParams();
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <MemoDetailPage memoId={memoId} />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <MemoDetailPage memoId={memoId} />;
 }
 
 const memoRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/memo/$memoId",
   component: MemoDetailRoutePage,
   // Intent preload already warms the JS chunk; this warms the data so the
@@ -338,17 +329,11 @@ const accountRoute = createRoute({
 });
 
 function DailyReviewRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <DailyReviewPage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <DailyReviewPage />;
 }
 
 const dailyReviewRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/review/daily",
   component: DailyReviewRoutePage,
   loader: ({ context }) => {
@@ -356,41 +341,29 @@ const dailyReviewRoute = createRoute({
     const tzOffset = -new Date().getTimezoneOffset();
     warmQuery(
       context.queryClient.ensureQueryData({
-        queryKey: ["daily-review", today, tzOffset],
-        queryFn: () => getDailyReview(today, tzOffset),
+        queryKey: queryKeys.review.today(today, tzOffset),
+        queryFn: () => getTodayReview(today, tzOffset),
       }),
     );
   },
 });
 
 function RandomWalkRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <RandomWalkPage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <RandomWalkPage />;
 }
 
 const randomWalkRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/review/walk",
   component: RandomWalkRoutePage,
 });
 
 function MemoryRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <MemoryPage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <MemoryPage />;
 }
 
 const memoryRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/memory",
   component: MemoryRoutePage,
   loader: ({ context }) => {
@@ -404,17 +377,11 @@ const memoryRoute = createRoute({
 });
 
 function ProjectsRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <ProjectsPage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <ProjectsPage />;
 }
 
 const projectsRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/projects",
   // A to-do view (today / upcoming / all) or one project, so reminders and
   // memo badges can deep-link to the exact list.
@@ -440,34 +407,12 @@ const projectsRoute = createRoute({
   },
 });
 
-function CaptureRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <CapturePage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
-}
-
-const captureRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/capture",
-  component: CaptureRoutePage,
-});
-
 function ArticlesRoutePage() {
-  return (
-    <AuthenticatedRoute>
-      <Suspense fallback={<RouteLoading />}>
-        <ArticlesPage />
-      </Suspense>
-    </AuthenticatedRoute>
-  );
+  return <ArticlesPage />;
 }
 
 const articlesRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => workspaceRoute,
   path: "/articles",
   component: ArticlesRoutePage,
   loader: ({ context }) => {
@@ -504,8 +449,16 @@ const router = createRouter({
   // placeholder keeps route loader signatures aware of it.
   context: { queryClient: undefined as unknown as QueryClient },
   routeTree: rootRoute.addChildren([
-    indexRoute,
-    memoRoute,
+    // Pages beside the explorer sidebar share one persistent shell.
+    workspaceRoute.addChildren([
+      indexRoute,
+      memoRoute,
+      dailyReviewRoute,
+      randomWalkRoute,
+      memoryRoute,
+      projectsRoute,
+      articlesRoute,
+    ]),
     shareRoute,
     loginRoute,
     registerRoute,
@@ -516,12 +469,6 @@ const router = createRouter({
     recoverRoute,
     setupRoute,
     accountRoute,
-    dailyReviewRoute,
-    randomWalkRoute,
-    memoryRoute,
-    projectsRoute,
-    captureRoute,
-    articlesRoute,
     articleEditRoute,
   ]),
   scrollRestoration: true,

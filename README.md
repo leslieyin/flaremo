@@ -31,6 +31,10 @@
 | :---: | :---: | :---: |
 | <img src="./docs/assets/flaremo-desktop-light.png" width="360" alt="FlareMo Desktop Light Mode" /> | <img src="./docs/assets/flaremo-desktop-dark.png" width="360" alt="FlareMo Desktop Dark Mode" /> | <img src="./docs/assets/flaremo-mobile.png" width="168" alt="FlareMo Mobile Mode" /> |
 
+| ✅ To-dos, projects and review | 📄 Articles you can publish |
+| :---: | :---: |
+| <img src="./docs/assets/flaremo-tasks.png" width="560" alt="To-dos, projects and review" /> | <img src="./docs/assets/flaremo-articles.png" width="560" alt="Articles you can publish" /> |
+
 <sub>Actual live screenshots: seamless light/dark mode switching and full-featured mobile responsiveness. Every feature shown is wired to working backend capabilities.</sub>
 
 </div>
@@ -39,7 +43,7 @@
 
 ## 💡 Why FlareMo?
 
-Tools like Flomo and Memos proved the immense value of low-friction memo capture and a distraction-free timeline. However, self-hosting a traditional note-taking setup typically means paying for a VPS, configuring Docker and PostgreSQL, scripting automated backups, and dreading disk or hardware failures.
+Low-friction memo capture and a distraction-free timeline have proved their value. Self-hosting a traditional note-taking setup, though, typically means paying for a VPS, configuring Docker and PostgreSQL, scripting automated backups, and dreading disk or hardware failures.
 
 FlareMo answers a simpler question: **Can you get a 24/7 online, resilient, globally accelerated knowledge base with zero server maintenance, using just a free Cloudflare account?**
 
@@ -55,7 +59,7 @@ FlareMo answers a simpler question: **Can you get a 24/7 online, resilient, glob
 
 ### 1. Instant Capture & Inspiring Review
 - **Capture in milliseconds**: Card-style timeline, tags, Markdown/GFM, and previews for image and audio attachments.
-- **Notes and long-form**: The composer stays a quick note (tags, up to 9 images, bold, lists, to-dos); "Write long-form" opens a full-screen canvas for articles.
+- **Notes and articles**: The composer stays a quick note (tags, up to 9 images, bold, lists, to-dos); "Write full screen" opens the same note in a full-screen canvas. Articles are written from the Articles page.
 - **Comments under the note**: Comment on any note, in your personal space or the team space, Weibo-style. Comments live under the original note and stay out of the timeline, search, stats, tags, and review.
 - **Lightning-fast search**: SQLite FTS5 full-text indexing with query operators (`has:attachment`, `is:pinned`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, `in:timeline|archive|trash`).
 - **Semantic "Find" (Vector Search)**: Workers AI embeddings paired with Vectorize derived vector indexes for contextual recall; re-verifies permissions against D1 and seamlessly falls back to FTS5.
@@ -90,7 +94,7 @@ FlareMo answers a simpler question: **Can you get a 24/7 online, resilient, glob
 ### 6. Offline First & PWA Experience
 - **Installable PWA**: Install to macOS, Windows, iOS, or Android home screen with native feel.
 - **Reliable offline sync**: Drafts save locally instantly. Offline submissions and uploads queue up and replay automatically when connectivity is restored.
-- **Live voice capture**: Access `/capture` for real-time streaming speech-to-text (ASR) transcription.
+- **Live voice input**: The composer's microphone button streams speech-to-text (ASR) into the draft as you speak.
 
 ### 7. Secure Better Auth Application Security
 - **Better Auth powered**: HttpOnly, `SameSite=Lax` browser cookie sessions; revocable `memos_pat_` Personal Access Tokens for scripts, CLI, and MCP.
@@ -99,7 +103,7 @@ FlareMo answers a simpler question: **Can you get a 24/7 online, resilient, glob
 ### 8. Memos Compatibility & Seamless Migration
 - **Memos `/api/v1` compatibility**: Provides core Memos API endpoints (camelCase default, legacy snake_case via header) and OpenAPI schema.
 - **Third-party apps ready**: Works directly with mobile clients like Moe Memos.
-- **Bi-directional import & export**: One-click import from Memos / flomo with conflict strategies and full raw export bundles.
+- **Bi-directional import & export**: Full raw export bundles, one-click import with conflict strategies, plus a converter for Memos 0.31 exports ([guide](./docs/en/import-from-memos.md)).
 
 ---
 

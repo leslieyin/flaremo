@@ -1,9 +1,10 @@
-import { PanelLeftOpenIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { usePageContentWidth } from "@/components/workspace/workspace-layout";
 import type { WorkspaceSidebarContent } from "@/components/workspace/workspace-sidebar";
-import { WorkspaceMobileSidebar } from "@/components/workspace/workspace-sidebar";
-import { useI18n } from "@/i18n";
+import {
+  SidebarToggleSlot,
+  WorkspaceMobileSidebar,
+} from "@/components/workspace/workspace-sidebar";
 import { cn } from "@/lib/utils";
 
 export function WorkspacePageHeader({
@@ -11,11 +12,9 @@ export function WorkspacePageHeader({
   title,
   actions,
   explorer,
+  sidebarCollapsed,
   mobileSheetOpen,
   setMobileSheetOpen,
-  sidebarCollapsed,
-  toggleSidebarCollapsed,
-  contentMaxWidth = 640,
   isScrolled = false,
 }: {
   icon?: ReactNode;
@@ -25,12 +24,11 @@ export function WorkspacePageHeader({
   mobileSheetOpen: boolean;
   setMobileSheetOpen: (open: boolean) => void;
   sidebarCollapsed: boolean;
-  toggleSidebarCollapsed: () => void;
-  /** Mirrors WorkspaceLayout's content column so the two stay aligned. */
-  contentMaxWidth?: number;
+  /** The shell's toggle owns collapsing; kept for call-site parity. */
+  toggleSidebarCollapsed?: () => void;
   isScrolled?: boolean;
 }) {
-  const { t } = useI18n();
+  const contentWidth = usePageContentWidth();
 
   return (
     <header
@@ -39,32 +37,14 @@ export function WorkspacePageHeader({
         isScrolled ? "border-border shadow-xs" : "border-transparent",
       )}
     >
+      {/* The bar spans the whole area beside the sidebar (its hairline and
+          blur run edge to edge); its row has the page's content width and
+          starts where the column below starts, so the title lines up. */}
       <div
-        className={cn(
-          "flex h-14 items-center gap-2 px-5 lg:px-3 motion-safe:transition-[max-width,padding] motion-safe:duration-250 motion-safe:ease-signal",
-          sidebarCollapsed && "mx-auto w-full",
-        )}
-        style={sidebarCollapsed ? { maxWidth: contentMaxWidth } : undefined}
+        className="mx-auto flex h-14 w-full items-center gap-1 px-5 md:ms-0 lg:px-2.5"
+        style={{ maxWidth: contentWidth }}
       >
-        <div
-          className={cn(
-            "hidden lg:flex items-center overflow-hidden motion-safe:transition-[width,opacity,margin] motion-safe:duration-250 motion-safe:ease-signal",
-            sidebarCollapsed
-              ? "w-8 opacity-100"
-              : "w-0 opacity-0 pointer-events-none -mr-2",
-          )}
-        >
-          <Button
-            aria-label={t("sidebar.expand")}
-            size="icon-sm"
-            title={t("sidebar.expand")}
-            variant="ghost"
-            onClick={toggleSidebarCollapsed}
-          >
-            <PanelLeftOpenIcon />
-          </Button>
-        </div>
-
+        <SidebarToggleSlot collapsed={sidebarCollapsed} />
         <WorkspaceMobileSidebar
           explorer={explorer}
           open={mobileSheetOpen}
@@ -76,7 +56,16 @@ export function WorkspacePageHeader({
               item keeps its content width and `truncate` on the h1 has nothing
               to shrink into, so a long title ran under the actions. */}
           <div className="flex min-w-0 items-center gap-2 px-1">
-            {icon}
+            {/* Ink, not flame: the sidebar row already says where you are
+                in color; the title repeats it quietly. */}
+            {icon ? (
+              <span
+                aria-hidden="true"
+                className="flex shrink-0 text-muted-foreground [&_svg]:size-4 [&_svg]:text-current!"
+              >
+                {icon}
+              </span>
+            ) : null}
             <h1 className="min-w-0 truncate text-[15px] leading-none font-semibold tracking-tight">
               {title}
             </h1>

@@ -8,10 +8,15 @@ import {
   useState,
 } from "react";
 import type { Attachment, Memo, MemoVisibility, Share } from "@/api";
-import { MemoCardBody } from "@/components/memo-card/memo-card-body";
+import {
+  canOpenMemoThread,
+  MemoCardBody,
+  MemoCommentButton,
+} from "@/components/memo-card/memo-card-body";
 import { MemoCardEditor } from "@/components/memo-card/memo-card-editor";
 import { MemoCardHeader } from "@/components/memo-card/memo-card-header";
 import { useMemoCardActions } from "@/components/memo-card/use-memo-card-actions";
+import { MemoComments } from "@/components/memo-comments";
 import { cn } from "@/lib/utils";
 
 type MemoCardProps = {
@@ -51,7 +56,16 @@ type MemoCardProps = {
    * discard the draft the user is still typing.
    */
   onEditingChange?: (memoName: string, editing: boolean) => void;
+  /** The workspace has a team someone else is in: every live card can be
+      commented on in place. */
+  commentsEnabled?: boolean;
 };
+
+/**
+ * Threads the reader opened, by memo id. The virtualized timeline remounts
+ * cards as they scroll back into view; an open thread stays open.
+ */
+const openThreads = new Set<string>();
 
 export const MemoCard = memo(function MemoCard({
   memo,
@@ -75,6 +89,7 @@ export const MemoCard = memo(function MemoCard({
   onRequestShareImage,
   onRequestVisibility,
   onEditingChange,
+  commentsEnabled = false,
 }: MemoCardProps) {
   // Expansion is per-card and resets on remount; it outlives an edit
   // round-trip, so it stays above the body/editor switch.
@@ -87,18 +102,38 @@ export const MemoCard = memo(function MemoCard({
   // session (Esc while a paste is still settling) keeps its target.
   const editEditorRef = useRef<Editor | null>(null);
   const isTrashed = memo.state === "trashed";
+  const [commentsOpen, setCommentsOpen] = useState(() =>
+    openThreads.has(memo.id),
+  );
+  // Focus the reply box only when the reader just opened the thread, not
+  // when a remount restores it.
+  const [focusReply, setFocusReply] = useState(false);
+  const toggleComments = useCallback(() => {
+    setCommentsOpen((open) => {
+      const next = !open;
+      if (next) openThreads.add(memo.id);
+      else openThreads.delete(memo.id);
+      return next;
+    });
+    setFocusReply(true);
+  }, [memo.id]);
 
   // The virtualized list may unmount a card at any scroll offset. While the
   // editor is open that would throw away the draft, so every write to
   // `isEditing` — including the one inside useMemoCardActions' save path —
   // goes through this wrapper, which reports the state to the list.
+  // The report happens beside the state write, not inside an updater:
+  // updaters run during render, and setting the list's state from there is
+  // React's "cannot update a component while rendering another" error.
+  const editingRef = useRef(false);
   const setEditing = useCallback<Dispatch<SetStateAction<boolean>>>(
     (value) => {
-      setIsEditing((previous) => {
-        const next = typeof value === "function" ? value(previous) : value;
-        if (next !== previous) onEditingChange?.(memo.name, next);
-        return next;
-      });
+      const previous = editingRef.current;
+      const next = typeof value === "function" ? value(previous) : value;
+      if (next === previous) return;
+      editingRef.current = next;
+      setIsEditing(next);
+      onEditingChange?.(memo.name, next);
     },
     [memo.name, onEditingChange],
   );
@@ -116,6 +151,8 @@ export const MemoCard = memo(function MemoCard({
       setIsEditing: setEditing,
       setIsSaving,
     });
+
+  const canOpenThread = canOpenMemoThread(memo, commentsEnabled);
 
   const startEditing = () => {
     setDraftContent(memo.content);
@@ -140,6 +177,15 @@ export const MemoCard = memo(function MemoCard({
       style={{ animationDelay: `${Math.min(index, 7) * 35}ms` }}
     >
       <MemoCardHeader
+        commentAction={
+          canOpenThread ? (
+            <MemoCommentButton
+              count={memo.comment_count ?? 0}
+              open={commentsOpen}
+              onToggle={toggleComments}
+            />
+          ) : null
+        }
         memo={memo}
         id={id}
         isTrashed={isTrashed}
@@ -182,6 +228,16 @@ export const MemoCard = memo(function MemoCard({
           onToggleExpanded={() => setExpanded((value) => !value)}
           searchQuery={searchQuery}
           taskInteraction={taskInteraction}
+          canOpenThread={canOpenThread}
+        />
+      )}
+      {commentsOpen && !isEditing && canOpenThread && (
+        <MemoComments
+          autoFocus={focusReply}
+          canComment
+          memoId={memo.id}
+          mentions={commentsEnabled && memo.visibility !== "private"}
+          variant="inline"
         />
       )}
     </article>

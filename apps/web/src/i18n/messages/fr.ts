@@ -85,6 +85,8 @@ const messages = {
   "voiceSettings.provider": "Fournisseur",
   "voiceSettings.tencent": "Tencent Cloud",
   "voiceSettings.model": "Modèle de reconnaissance (vide = valeur par défaut)",
+  "voiceSettings.modelLabel": "Modèle de reconnaissance",
+  "voiceSettings.modelDefault": "Par défaut",
   "voiceSettings.appId": "AppID Tencent Cloud",
   "voiceSettings.secretId": "SecretId Tencent Cloud",
   "voiceSettings.secretKey": "SecretKey Tencent Cloud",
@@ -153,39 +155,24 @@ const messages = {
   "view.timeline": "Chronologie",
   "view.archive": "Archives",
   "view.trash": "Corbeille",
-  "space.all": "Tout",
+  "space.all": "Tous les espaces",
   "space.personal": "Espace personnel",
   "space.team": "Espace d'équipe",
   "space.readonlyNotice":
     "Cet espace est en lecture seule — vous êtes lecteur : consultation sans publication.",
   "space.expiredNotice":
     "Votre accès lecteur a expiré. L'espace d'équipe redeviendra accessible après renouvellement.",
-  "nav.allMemos": "Toutes les notes",
-  "nav.dailyReview": "Ce jour-là",
+  "nav.allMemos": "Notes",
+  "nav.dailyReview": "Revue du jour",
   "nav.randomWalk": "Balade",
+  "nav.review": "Revoir",
   "nav.memory": "Mémoire",
   "nav.projects": "Tâches",
-  "nav.capture": "Capture vocale",
   "capture.title": "Capture vocale",
   "capture.requestingPermission": "En attente de l'autorisation micro…",
   "capture.connecting":
     "Micro actif · connexion à la transcription. Vous pourrez parler dans un instant…",
   "capture.stopping": "Micro coupé · réception de la dernière phrase…",
-  "capture.foreground":
-    "Gardez cette page au premier plan. Changer d'onglet ou verrouiller l'écran interrompt l'enregistrement. L'audio brut est conservé par défaut ; vous pouvez le désactiver à l'enregistrement.",
-  "capture.keepAudio": "Conserver l'audio brut",
-  "capture.audioNotSaved":
-    "La transcription est enregistrée, mais l'audio brut n'a pas pu être importé.",
-  "capture.leaveTitle": "Quitter la capture vocale ?",
-  "capture.leaveRecording":
-    "L'enregistrement est en cours. En l'arrêtant puis en partant, le texte non enregistré reste dans un brouillon local sur cet appareil.",
-  "capture.leaveUnsaved":
-    "Cette capture vocale n'est pas enregistrée. Vous pourrez la restaurer sur cet appareil après votre départ.",
-  "capture.continueRecording": "Continuer l'enregistrement",
-  "capture.stopAndLeave": "Arrêter et quitter",
-  "capture.leavePage": "Quitter la page",
-  "capture.draftUnavailable":
-    "Les brouillons locaux sont indisponibles. Copiez votre texte ou enregistrez la note sans tarder.",
   "capture.permissionDenied":
     "L'accès au micro a été refusé. Autorisez-le dans les réglages du site de votre navigateur, puis réessayez.",
   "capture.noMicrophone":
@@ -196,72 +183,21 @@ const messages = {
     "L'enregistrement a été interrompu et le micro est coupé. Relisez le texte capturé ; la fin peut être incomplète.",
   "capture.unavailable":
     "La transcription n'est pas configurée ou momentanément indisponible. Réessayez plus tard.",
-  "capture.unavailableOwnerLink":
-    "Activez-la dans « Réglages → Service vocal ».",
-  "capture.unavailableMember":
-    "Veuillez demander au propriétaire de l'instance d'activer la reconnaissance vocale.",
-  "capture.wakeLockFailed":
-    "Impossible de maintenir l'écran allumé ; le verrouillage pourrait interrompre l'enregistrement.",
   "capture.connectionFailed":
     "Connexion à la transcription impossible, le micro est coupé. Le texte capturé reste modifiable et enregistrable.",
   "capture.finishFailed":
     "La complétude de la dernière phrase n'a pas pu être confirmée. Le micro est coupé. Vérifiez la fin de la transcription.",
   "capture.limitReached":
     "Cette capture a atteint sa limite de durée ou de texte. Enregistrez-la avant d'en commencer une nouvelle.",
-  "capture.gap":
-    "La parole pendant une coupure de connexion peut manquer. Relisez la transcription.",
-  "capture.recovery": "Capture vocale non enregistrée trouvée",
-  "capture.restore": "Restaurer le texte",
-  "capture.discard": "Abandonner la capture",
-  "capture.discardConfirm":
-    "Abandonner supprime ce brouillon local, sans possibilité d'annulation.",
-  "capture.recordedAt": "Enregistré le",
-  "capture.duration": "Durée",
-  "capture.transcript": "Transcription",
-  "capture.tags": "Tags (séparés par des virgules ; voice est toujours inclus)",
-  "capture.visibility": "Visibilité",
-  "capture.private": "Privé",
-  "capture.public": "Public",
-  "capture.saveFailed":
-    "Échec de l'enregistrement. Votre texte est conservé. Vérifiez la connexion et réessayez.",
-  "capture.cleanupFailed":
-    "La note est enregistrée dans FlareMo, mais la copie locale de récupération n'a pas pu être supprimée. Relancez le nettoyage.",
-  "capture.retryCleanup": "Relancer le nettoyage local",
-  "capture.saving": "Enregistrement…",
-  "capture.recentSentences":
-    "Les 100 dernières phrases s'affichent ici. La transcription complète est disponible à l'arrêt.",
-  "capture.empty": "La parole reconnue apparaîtra ici une fois lancé.",
-  "capture.description":
-    "Une fois lancé, FlareMo utilisera votre micro pour transcrire en direct.",
-  "capture.start": "Démarrer l'enregistrement",
-  "capture.stop": "Arrêter l'enregistrement",
   "capture.recording": "Vous pouvez parler · Enregistrement en cours",
-  "capture.reconnecting": "Micro actif · reconnexion à la transcription…",
-  "capture.review": "Relire la capture vocale",
-  "capture.save": "Enregistrer dans FlareMo",
-  "capture.error":
-    "Impossible d'utiliser le micro ou le service de transcription.",
-  "capture.nearLimit":
-    "Environ 5 minutes restantes avant la limite d'enregistrement.",
-  "capture.charsUsed": "{count} / {max} caractères",
-  "capture.saveSucceeded": "Enregistré.",
   "capture.transcribing": "Transcription…",
   "capture.transcribingCount": "Transcription du segment {done} sur {total}…",
   "capture.transcribeFailed":
     "La transcription a échoué. Le texte reconnu n'a pas pu être produit ; modifiez le brouillon à la main ou abandonnez-le.",
-  "capture.cancelTranscribing": "Annuler la transcription",
-  "capture.retryTranscription": "Réessayer la transcription",
-  "capture.pause": "Mettre l'enregistrement en pause",
-  "capture.resume": "Reprendre l'enregistrement",
   "capture.paused": "En pause · le chronomètre continue",
-  "capture.waveform": "Onde du microphone en direct",
-  "review.onThisDayBanner": "Ce jour-là · {count} notes des années passées",
+  "review.onThisDayBanner": "Revue du jour · encore {count} notes",
   "review.oneYearAgoToday": "Il y a un an, jour pour jour",
   "review.yearsAgoToday": "Il y a {count} ans, jour pour jour",
-  "review.ladder7d": "Cette semaine",
-  "review.ladder30d": "Ce mois-ci",
-  "review.ladder90d": "Ces trois derniers mois",
-  "review.ladder180d": "Un peu plus loin",
   "review.dailyEmptyTitle": "Pas encore de notes pour ce jour",
   "review.dailyEmptyDescription":
     "Commencez à écrire aujourd'hui ; dans un an, cette page vous retrouvera.",
@@ -296,6 +232,7 @@ const messages = {
   "notifications.type.memoMention": "Vous a mentionné dans une note",
   "notifications.archiveFailed": "Échec de l'archivage de la notification.",
   "sidebar.navigation": "Navigation",
+  "sidebar.storage": "Archives et corbeille",
   "sidebar.title": "Barre latérale",
   "sidebar.mobileDescription": "Ouvre la barre latérale de navigation.",
   "sidebar.toggle": "Basculer la barre latérale",
@@ -321,8 +258,6 @@ const messages = {
   "shortcuts.send": "Envoyer le texte en cours",
   "shortcuts.linebreak": "Insérer un saut de ligne pendant la saisie",
   "shortcuts.saveEdit": "Enregistrer la note en cours de modification",
-  "shortcuts.capture":
-    "Démarrer ou arrêter l'enregistrement vocal (sur /capture)",
   "composer.removeFile": "Retirer {filename}",
   "composer.imageUploadFailed": "Échec de l'envoi de l'image. Réessayez.",
   "attachment.unavailable":
@@ -467,6 +402,8 @@ const messages = {
   "imageViewer.zoomIn": "Agrandir",
   "imageViewer.zoomOut": "Réduire",
   "imageViewer.reset": "Réinitialiser le zoom",
+  "imageViewer.previous": "Image précédente",
+  "imageViewer.next": "Image suivante",
   "detail.unavailable": "Note indisponible",
   "detail.outgoing": "Références",
   "detail.backlinks": "Référencé par",
@@ -865,6 +802,10 @@ const messages = {
   "toast.copyFailed": "Copie impossible ; copiez le lien à la main.",
   "toast.invalidImport": "Le fichier d'import n'est pas un JSON valide",
   "toast.draftRestored": "Brouillon inachevé restauré",
+  "composer.offlineNotice":
+    "Vous êtes hors ligne. Les nouvelles notes restent sur cet appareil.",
+  "composer.offlinePending":
+    "{count} note(s) en attente de synchronisation ; enregistrement automatique une fois reconnecté.",
   "toast.queuedForSync":
     "Vous êtes hors ligne. La note s'enregistrera automatiquement une fois reconnecté.",
   "toast.queueSynced": "Note hors ligne enregistrée",
@@ -894,20 +835,19 @@ const messages = {
   "memory.bannerHint":
     "L'IA distille une mémoire à long terme de vos notes ; gérez vos règles et habitudes ici.",
   "memory.bannerReviewAlert":
-    "{count} nouvelles propositions ou conflits de l'IA attendent votre décision",
+    "{count} propositions de l’IA attendent votre avis",
   "memory.viewLens": "Aperçu du prompt",
-  "memory.lensTitle": "Lentille de mémoire pour IA",
+  "memory.lensTitle": "Aide-mémoire",
   "memory.lensDescription":
-    "Voici le contexte de mémoire compilé dynamiquement et injecté dans les invites système des agents.",
+    "C’est ce qu’un agent reçoit quand il récupère la mémoire via MCP. Les règles d’or sont toujours incluses ; le reste remplit l’espace par importance.",
   "memory.filterAll": "Tout",
   "memory.filterCore": "Règles d'or",
-  "memory.filterObserved": "Observé par l'IA",
-  "memory.filterReview": "À examiner",
+  "memory.filterObserved": "Trouvé par l’IA",
+  "memory.filterReview": "À confirmer",
   "memory.allProjects": "Tous les projets",
   "memory.coreShort": "Règle d'or",
   "memory.projectMemoryCount": "{count} souvenirs",
   "memory.projectCoreCount": "{count} règles d'or",
-  "memory.projectRuleLabel": "Règle",
   "memory.projectUpdated": "Mis à jour {time}",
   "memory.projectViewAll": "Voir tous les souvenirs",
   "memory.composerPlaceholderProject":
@@ -917,8 +857,8 @@ const messages = {
   "memory.composerPlaceholderPreference": "Noter une préférence ou une idée…",
   "memory.composerPickProject": "Choisir un projet",
   "memory.composerCustomProjectPrompt":
-    "Saisissez un nom de projet ou un chemin absolu (ex. FlareMo ou /Users/...) :",
-  "memory.composerCustomProject": "Projet personnalisé…",
+    "Nom du projet, chemin du dépôt ou github:owner/repo — la même clé que vos agents envoient.",
+  "memory.composerCustomProject": "Autre projet…",
   "memory.coldStartTitle": "Définissez rapidement votre première règle :",
   "memory.coldStart1":
     "Allez droit au but, évitez les formules de politesse superflues",
@@ -934,7 +874,7 @@ const messages = {
   "memory.emptyTitle": "Pas encore de mémoires",
   "memory.emptyDescription":
     "Votre IA distillera des mémoires durables au fil de son travail, et vous pouvez les ajouter ici manuellement.",
-  "memory.reviewEmpty": "Rien à valider",
+  "memory.reviewEmpty": "Aucune proposition en attente",
   "memory.content": "Contenu",
   "memory.type": "Type",
   "memory.kind": "Nature",
@@ -986,20 +926,19 @@ const messages = {
   "memory.status.deleted": "Supprimée",
   "memory.evidenceFrom": "Source :",
   "memory.rejectReasonUser": "Rejeté dans la boîte de révision",
-  "memory.pinned": "Ma décision",
   "memory.confirmedBadge": "Confirmé",
   "memory.observedBadge": "Constat de l'IA",
   "memory.inferredBadge": "Hypothèse de l'IA",
-  "memory.pin": "Épingler comme règle",
-  "memory.unpin": "Détacher",
+  "memory.pin": "Faire une règle d’or",
+  "memory.unpin": "Retirer la règle d’or",
   "memory.restore": "Restaurer la note",
   "memory.status.current": "En vigueur",
   "memory.status.supersededShort": "Remplacé",
   "memory.status.archivedShort": "Archivé",
   "memory.evidenceLabel": "D'après",
   "memory.pendingDecision": "À trancher",
-  "memory.acceptProposal": "Approuver",
-  "memory.rejectProposal": "Supprimer",
+  "memory.acceptProposal": "Accepter",
+  "memory.rejectProposal": "Refuser",
   "toast.memoryPinned": "Épinglé comme règle",
   "toast.memoryUnpinned": "Détaché",
   "toast.memoryRestored": "Note restaurée",
@@ -1025,7 +964,7 @@ const messages = {
   "projects.allTasks": "Toutes les tâches",
   "projects.allTasksEmptyTitle": "Aucune tâche pour l'instant",
   "projects.allTasksEmptyDescription":
-    "Créez une tâche, elle apparaîtra dans le tableau ci-dessous.",
+    "Saisissez une tâche ci-dessus et appuyez sur Entrée ; elle rejoint le tableau selon son état.",
   "projects.fromMemo": "Depuis une note",
   "projects.trashEmpty": "La corbeille est vide",
   "projects.unassigned": "Sans projet",
@@ -1283,6 +1222,9 @@ const messages = {
   "review.writeTodayMemo": "Écrire la note du jour",
   "review.writeFirstMemo": "Écrire votre première note",
   "common.scrollToTop": "Retour en haut",
+  "sidebar.resize":
+    "Faites glisser pour redimensionner, double-cliquez pour masquer",
+  "shortcuts.sidebar": "Replier ou déplier la barre latérale",
   "voiceSettings.credentials": "Identifiants",
   "voiceSettings.testAction": "Tester",
   "composer.mention": "Mentionner un membre",
@@ -1346,12 +1288,88 @@ const messages = {
     "À l'envoi, chaque case non cochée devient une tâche ; une note sans case devient une seule tâche. Rappel le jour même.",
   "composer.schedule.taskCount": "{count} tâche(s)",
   "composer.schedule.noTasks": "Aucune tâche ouverte",
-  "composer.longform": "Écrire un article",
+  "composer.longform": "Écrire en plein écran",
   "toast.scheduledTasks": "Enregistré, {count} tâche(s) planifiée(s)",
   "toast.scheduleFailed":
     "Note enregistrée, mais les tâches n'ont pas été créées. Convertissez-les depuis la carte.",
   "toast.tooManyMemoImages":
     "Une note contient au plus 9 images. Pour davantage, écrivez un article.",
+  "comments.action": "Commenter",
+  "comments.placeholderMentions":
+    "Écrire un commentaire, @ pour mentionner quelqu'un…",
+  "comments.mentionList": "Personnes à mentionner",
+  "comments.viewAll": "Voir les {count} commentaires",
+  "projects.viewsLabel": "Afficher par échéance",
+  "projects.view.upcomingShort": "7 jours",
+  "projects.allTasksShort": "Tout",
+  "projects.pickerLabel": "Choisir un projet",
+  "projects.allProjects": "Tous les projets",
+  "projects.archivedGroup": "Archivés",
+  "review.todayIntro": "Encore {count} anciennes notes à relire aujourd'hui.",
+  "review.todayIntroEmpty": "Aucune ancienne note à relire aujourd'hui.",
+  "review.deckProgress": "{current} / {total}",
+  "review.previous": "Précédente",
+  "review.next": "Suivante",
+  "review.finish": "Terminé",
+  "review.doneTitle": "La revue du jour est terminée",
+  "review.doneDescription":
+    "Vous avez relu {count} anciennes notes. Les notes lues ne reviennent pas avant un mois.",
+  "review.readAgain": "Recommencer",
+  "review.goWalk": "Faire une promenade",
+  "review.walkIntro":
+    "Partez d'une ancienne note et suivez ses étiquettes et ses liens jusqu'à la suivante.",
+  "review.walkBack": "Retour",
+  "article.filterAll": "Tout",
+  "article.filterEmpty": "Aucun article ici pour l'instant",
+  "review.daysAgo": "Il y a {count} jours",
+  "review.weeksAgo": "Il y a {count} semaines",
+  "review.monthsAgo": "Il y a {count} mois",
+  "review.todayIntroDone": "Les {count} notes du jour sont relues.",
+  "review.reply": "Ajouter une pensée",
+  "review.archive": "Archiver",
+  "review.mute": "Ne plus afficher",
+  "review.archived": "Archivée",
+  "review.muted": "Cette note ne reviendra plus dans la revue",
+  "review.settingsTitle": "Réglages de la revue",
+  "review.settingsDescription":
+    "Choisissez les notes qui restent hors de la revue quotidienne.",
+  "review.excludedTagsTitle": "Ignorer ces étiquettes",
+  "review.excludedTagsHint":
+    "Une étiquette choisie ignore aussi ses sous-étiquettes.",
+  "review.excludedTagsEmpty": "Pas encore d'étiquettes.",
+  "review.mutedTitle": "Notes à ne plus afficher",
+  "review.mutedCount": "{count} notes",
+  "review.mutedNone": "Aucune",
+  "review.mutedRestore": "Tout rétablir",
+  "review.doneWeek": "Cette semaine, vous avez écrit {count} nouvelles notes.",
+  "review.doneWeekEmpty":
+    "Aucune nouvelle note cette semaine. Pourquoi ne pas en écrire une aujourd'hui ?",
+  "memory.composerUseProject": "Utiliser",
+  "memory.coreEmpty":
+    "Pas encore de règle d’or. Le menu « … » d’un souvenir permet d’en créer une.",
+  "memory.listEmpty": "Aucun souvenir ici pour l’instant",
+  "memory.usedCount": "utilisé {count} fois",
+  "memory.lastUsed": "Dernière utilisation {time}",
+  "memory.reason.supersede":
+    "Veut remplacer un souvenir que vous avez confirmé",
+  "memory.reason.contradicts": "Contredit un souvenir existant",
+  "memory.reason.evidenceStale": "Sa source a changé",
+  "memory.confirmObserved": "Confirmer",
+  "memory.conflictCurrent": "Actuellement",
+  "memory.keepStillTrue": "Toujours vrai",
+  "memory.acceptReplace": "Prendre le nouveau",
+  "memory.keepCurrent": "Garder l’actuel",
+  "memory.lensContext": "Contexte de travail",
+  "memory.lensGlobal": "Général (hors projet)",
+  "memory.lensInProject": "Dans {project}",
+  "memory.lensStats": "{count} inclus · environ {tokens} tokens",
+  "memory.lensTruncated":
+    "Faute de place, {count} de plus n’ont pas été inclus :",
+  "memory.lensPinnedOverflow":
+    "Les règles d’or occupent tout l’espace ; rien d’autre n’a tenu.",
+  "memory.lensEmpty":
+    "Rien à transmettre aux agents pour l’instant. Les souvenirs confirmés et les règles d’or apparaîtront ici.",
+  "memory.lensCopy": "Copier",
 } as const satisfies Record<TranslationKey, string>;
 
 export const fr = messages;

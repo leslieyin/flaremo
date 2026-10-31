@@ -224,8 +224,11 @@
     --secondary-foreground: oklch(0.28 0.006 75);
     --muted: oklch(0.948 0.007 80);
     --muted-foreground: oklch(0.5 0.009 75);
-    --accent: var(--brand-50);
-    --accent-foreground: var(--brand-700);
+    /* Ember 3: accent is the neutral "pointer is here" fill (menu focus,
+       palette selection, row hover, empty-state tiles). Brand tint washing
+       every hovered row read loud; selection is ink, emphasis is flame. */
+    --accent: oklch(0.948 0.008 78);
+    --accent-foreground: var(--foreground);
     --destructive: oklch(0.577 0.245 27.325);
     --success: oklch(0.62 0.13 155);
     --success-foreground: oklch(0.98 0.01 150);
@@ -242,6 +245,13 @@
     /* Ember 2: a tighter, more exact corner. Controls 10px, cards 14px,
        dialogs 18px. The 0.875rem base read as soft and bubbly at h-8. */
     --radius: 0.625rem;
+    /* Motion durations (Ember 3). Three steps only: feedback (hover, press,
+       toggles), overlay (menus, popovers, tooltips) and surface (dialogs,
+       sheets, page entrances). Easing is --ease-signal everywhere except
+       micro pops (--ease-spring). */
+    --duration-fast: 120ms;
+    --duration-overlay: 160ms;
+    --duration-surface: 220ms;
     /* Two-layer warm shadows: a tight contact shadow for edge definition plus
        a soft ambient one for lift. Kept low so surfaces read as paper. */
     --shadow-xs: 0 1px 2px oklch(0.30 0.02 60 / 0.045);
@@ -289,8 +299,8 @@
     --secondary-foreground: oklch(0.955 0.003 75);
     --muted: oklch(0.26 0.004 75);
     --muted-foreground: oklch(0.68 0.008 75);
-    --accent: oklch(0.30 0.03 35);
-    --accent-foreground: var(--brand-200);
+    --accent: oklch(0.285 0.006 72);
+    --accent-foreground: var(--foreground);
     --destructive: oklch(0.704 0.191 22.216);
     --success: oklch(0.70 0.13 155);
     --success-foreground: oklch(0.16 0.03 155);
@@ -437,6 +447,15 @@
     }
   html {
     @apply font-sans;
+    /* Mixed CJK/Latin setting: a hair of space between Han and Latin or
+       digits ("D1 是事实源" without the author typing the spaces), and
+       full-width punctuation trimmed at line starts and in runs ("，「"),
+       the two habits that separate typeset Chinese from a raw text dump.
+       Progressive: engines without support render exactly as before, and
+       an existing space is never doubled. */
+    text-autospace: normal;
+    text-spacing-trim: normal;
+    font-kerning: normal;
     }
   /* CJK fallback list, keyed off the document language that I18nProvider
      writes to <html lang>. Font matching walks the family list per character,
@@ -664,6 +683,12 @@ svg.lucide[stroke-width="2"] {
     @apply mt-1;
   }
 
+  /* A note keeps the blank lines its author typed (see remark-literal): each
+     extra one renders as a paragraph whose only child is a break. */
+  .memo-markdown p:has(> br:only-child) {
+    min-height: 1.75rem;
+  }
+
   .memo-markdown h1 {
     @apply text-xl font-semibold tracking-tight;
   }
@@ -715,8 +740,10 @@ svg.lucide[stroke-width="2"] {
     @apply overflow-x-auto rounded-xl border border-border/60 bg-muted p-4;
   }
 
+  /* Fenced code sits in its own block: none of the inline chip (border,
+     radius, shrunk size) carries over, or every line wears a box. */
   .memo-markdown pre code {
-    @apply bg-transparent p-0;
+    @apply rounded-none border-0 bg-transparent p-0 text-[13px] leading-6;
   }
 
   .memo-markdown table {
@@ -729,16 +756,24 @@ svg.lucide[stroke-width="2"] {
   }
 
   /* Drawn task box: the native one renders as a glaring white square in dark
-     mode. A hairline square on the card, ticked with a primary fill. */
+     mode. A hairline square on the card, ticked with a primary fill. Shared
+     by Markdown task lists and the todo rows (.task-checkbox). */
   .memo-markdown input[type="checkbox"] {
-    @apply me-2 inline-grid size-[15px] cursor-pointer appearance-none place-content-center rounded-[4px] border-[1.5px] border-muted-foreground/45 bg-card align-[-2px] transition-colors hover:border-primary/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/25 disabled:cursor-default;
+    @apply me-2 align-[-2px];
   }
 
-  .memo-markdown input[type="checkbox"]:checked {
+  .memo-markdown input[type="checkbox"],
+  .task-checkbox {
+    @apply inline-grid size-[15px] cursor-pointer appearance-none place-content-center rounded-[4px] border-[1.5px] border-muted-foreground/45 bg-card transition-colors hover:border-primary/70 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/25 disabled:cursor-default;
+  }
+
+  .memo-markdown input[type="checkbox"]:checked,
+  .task-checkbox:checked {
     @apply border-primary bg-primary;
   }
 
-  .memo-markdown input[type="checkbox"]:checked::after {
+  .memo-markdown input[type="checkbox"]:checked::after,
+  .task-checkbox:checked::after {
     @apply -mt-px h-[8px] w-[4.5px] rotate-45 border-r-[1.75px] border-b-[1.75px] border-primary-foreground;
     content: "";
   }
@@ -748,17 +783,15 @@ svg.lucide[stroke-width="2"] {
   }
 
   /* Shiki dual themes on article surfaces: colors arrive as CSS variables
-     (defaultColor: false), resolved per color-scheme at display time. */
+     (defaultColor: false), resolved per color-scheme at display time. Only
+     the token colors come from Shiki; the block keeps the app's warm muted
+     surface, since github-dark's cool slate fights the dark palette. */
   .memo-markdown pre.shiki {
-    @apply bg-[var(--shiki-light-bg)];
+    @apply bg-muted;
   }
 
   .memo-markdown pre.shiki span {
     color: var(--shiki-light);
-  }
-
-  .dark .memo-markdown pre.shiki {
-    @apply bg-[var(--shiki-dark-bg)];
   }
 
   .dark .memo-markdown pre.shiki span {
@@ -778,6 +811,13 @@ svg.lucide[stroke-width="2"] {
     @apply min-h-32 max-h-80 overflow-y-auto px-4 pt-4 pb-2 text-[15px] leading-7 outline-none motion-safe:transition-[min-height,max-height,padding] motion-safe:duration-200 motion-safe:ease-signal;
   }
 
+  /* Inline edit in a timeline card: the text stays exactly where the read
+     view drew it. The card already pads; the composer's own inset and its
+     128px floor would shove a one-line note right and down on entering edit. */
+  .composer-editor-content.memo-card-editor-content {
+    @apply min-h-7 px-0 pt-0 pb-0;
+  }
+
   /* Article editor body: same typography as the reading surface, but
      unclipped — a long article grows the page instead of scrolling inside
      a fixed box. */
@@ -789,20 +829,27 @@ svg.lucide[stroke-width="2"] {
     @apply my-0 min-h-7;
   }
 
-  .article-editor-content p + p {
+  /* Block rhythm mirrors .memo-markdown (the preview and public page), so a
+     heading no longer sits flush on the paragraph below it while editing.
+     `:not(:first-child)` outranks the element rules above and below. */
+  .article-editor-content > :not(:first-child) {
     @apply mt-3;
   }
 
+  .article-editor-content > :is(h1, h2, h3):not(:first-child) {
+    @apply mt-6;
+  }
+
   .article-editor-content h1 {
-    @apply mt-4 text-2xl font-semibold tracking-tight;
+    @apply text-2xl font-semibold tracking-tight;
   }
 
   .article-editor-content h2 {
-    @apply mt-4 text-xl font-semibold tracking-tight;
+    @apply text-xl font-semibold tracking-tight;
   }
 
   .article-editor-content h3 {
-    @apply mt-3 text-lg font-semibold;
+    @apply text-lg font-semibold;
   }
 
   .article-editor-content table {
@@ -812,6 +859,144 @@ svg.lucide[stroke-width="2"] {
   .article-editor-content th,
   .article-editor-content td {
     @apply border px-3 py-2 text-left;
+  }
+
+  /* Article preview: the typesetting of the public article page
+     (apps/worker/src/routes/paper-page-styles.ts, the `article …` rules),
+     on the app's own colors. Same serif, size, measure and block rhythm, so
+     line breaks and spacing match what a reader will see. Keep the two in
+     step when either changes. */
+  .article-paper {
+    @apply mx-auto w-full max-w-[31.5rem];
+    font-family:
+      "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Songti SC",
+      "STSong", "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC",
+      SimSun, serif;
+    font-kerning: normal;
+  }
+
+  .article-paper .memo-markdown {
+    font-size: 17px;
+    line-height: 1.9;
+    hanging-punctuation: first;
+  }
+
+  .article-paper .memo-markdown > * + *,
+  .article-paper .memo-markdown p + p {
+    margin-top: 0;
+  }
+
+  .article-paper .memo-markdown :is(p, ul, ol) {
+    margin-bottom: 1.05em;
+  }
+
+  .article-paper .memo-markdown :is(h1, h2, h3, h4, h5, h6) {
+    margin: 1.9em 0 0.7em;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+  }
+
+  .article-paper .memo-markdown > :first-child {
+    margin-top: 0;
+  }
+
+  .article-paper .memo-markdown h1 {
+    font-size: 1.85rem;
+    margin-top: 0;
+  }
+
+  .article-paper .memo-markdown h2 {
+    font-size: 1.35rem;
+  }
+
+  .article-paper .memo-markdown h3 {
+    font-size: 1.12rem;
+  }
+
+  .article-paper .memo-markdown :is(h4, h5, h6) {
+    font-size: 1em;
+  }
+
+  .article-paper .memo-markdown strong {
+    font-weight: 650;
+  }
+
+  .article-paper .memo-markdown a {
+    @apply font-normal text-foreground decoration-primary decoration-1 underline-offset-[0.22em] hover:text-primary dark:text-foreground dark:hover:text-primary;
+  }
+
+  .article-paper .memo-markdown blockquote {
+    @apply my-[1.5em] border-s-2 border-primary py-[0.1em] ps-[1.2em] text-muted-foreground;
+  }
+
+  .article-paper .memo-markdown blockquote > :last-child {
+    margin-bottom: 0;
+  }
+
+  .article-paper .memo-markdown code {
+    @apply rounded-[3px] border-0 bg-muted px-[0.36em] py-[0.12em] text-[0.84em];
+  }
+
+  .article-paper .memo-markdown pre {
+    @apply my-[1.4em] rounded-[4px] border border-border/60 bg-muted px-[1.15em] py-[1em] text-[0.82rem] leading-[1.65];
+  }
+
+  .article-paper .memo-markdown pre code {
+    @apply bg-transparent p-0 text-[length:inherit] leading-[inherit];
+  }
+
+  .article-paper .memo-markdown table {
+    @apply my-[1.4em] text-[0.9rem];
+  }
+
+  .article-paper .memo-markdown :is(th, td) {
+    @apply border-0 border-b border-border px-[0.6em] py-[0.5em] text-start;
+  }
+
+  .article-paper .memo-markdown th {
+    @apply font-semibold border-muted-foreground/60;
+  }
+
+  .article-paper .memo-markdown hr {
+    @apply my-[2.4em] overflow-visible border-0 text-center;
+  }
+
+  .article-paper .memo-markdown hr::after {
+    @apply tracking-[0.6em] text-muted-foreground/70;
+    content: "· · ·";
+  }
+
+  .article-paper .memo-markdown :is(ul, ol) {
+    padding-inline-start: 1.5em;
+  }
+
+  .article-paper .memo-markdown ul ul {
+    list-style-type: circle;
+  }
+
+  .article-paper .memo-markdown li,
+  .article-paper .memo-markdown li + li {
+    margin: 0.25em 0;
+  }
+
+  .article-paper .memo-markdown li:has(> input[type="checkbox"]),
+  .article-paper .memo-markdown li:has(> p > input[type="checkbox"]) {
+    margin-inline-start: -1.5em;
+  }
+
+  .article-paper .memo-markdown input[type="checkbox"] {
+    @apply me-[0.4em] size-[0.95em] align-[-0.1em];
+  }
+
+  .article-paper .memo-markdown img {
+    @apply mx-auto my-[1.6em] block rounded-[2px] border-0 shadow-[0_1px_2px_rgb(60_40_10/0.12),0_10px_24px_-14px_rgb(60_40_10/0.35)];
+  }
+
+  /* Public pages render #tags as plain text. */
+  .article-paper .memo-markdown .memo-tag {
+    @apply inline bg-transparent p-0 text-[1em] leading-[inherit] text-inherit dark:bg-transparent;
   }
 
   /* flomo-style idle composer: an unfocused empty box shrinks to one quiet
@@ -877,7 +1062,7 @@ svg.lucide[stroke-width="2"] {
 
   .composer-editor-content pre code,
   .article-editor-content pre code {
-    @apply bg-transparent p-0;
+    @apply rounded-none border-0 bg-transparent p-0 text-[13px] leading-6;
   }
 
   .composer-editor-content img,

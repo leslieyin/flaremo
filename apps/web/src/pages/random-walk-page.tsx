@@ -1,5 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { FootprintsIcon, PlusIcon, ShuffleIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  FootprintsIcon,
+  PlusIcon,
+  ShuffleIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getRandomWalkMemo, getWalkNextMemo } from "@/api";
 import { MemoSnapshotCard } from "@/components/memo-snapshot-card";
@@ -16,6 +22,7 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { ReviewTabs } from "@/components/workspace/review-tabs";
 import { WorkspaceLayout } from "@/components/workspace/workspace-layout";
 import { WorkspacePageHeader } from "@/components/workspace/workspace-page-header";
 import { type TranslationKey, useI18n } from "@/i18n";
@@ -103,7 +110,8 @@ export function RandomWalkPage() {
     back: () => {},
   });
   keyActionsRef.current = {
-    walk: () => void walk(),
+    walk: () =>
+      cursor < steps.length - 1 ? setCursor(cursor + 1) : void walk(),
     back: () => setCursor((current) => Math.max(0, current - 1)),
   };
   useEffect(() => {
@@ -148,12 +156,21 @@ export function RandomWalkPage() {
           mobileSheetOpen={mobileSheetOpen}
           setMobileSheetOpen={setMobileSheetOpen}
           sidebarCollapsed={sidebarCollapsed}
-          title={t("nav.randomWalk")}
+          title={t("nav.review")}
+          actions={<ReviewTabs />}
           toggleSidebarCollapsed={toggleSidebarCollapsed}
         />
       )}
     >
       <div className="flex flex-col gap-4 py-2">
+        <div className="flex flex-col gap-1 px-1">
+          <h2 className="font-heading text-xl font-semibold tracking-tight">
+            {t("nav.randomWalk")}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {t("review.walkIntro")}
+          </p>
+        </div>
         {finished ? (
           <WalkPostcard onRestart={restart} pending={pending} steps={steps} />
         ) : (
@@ -171,10 +188,7 @@ export function RandomWalkPage() {
             {!pending && !loadError && steps.length === 0 && (
               <Empty className="min-h-72 border border-border/60 bg-card/50 motion-safe:animate-rise">
                 <EmptyHeader>
-                  <EmptyMedia
-                    className="bg-accent text-accent-foreground"
-                    variant="icon"
-                  >
+                  <EmptyMedia variant="icon">
                     <FootprintsIcon className="size-5" />
                   </EmptyMedia>
                   <EmptyTitle>{t("review.walkEmptyTitle")}</EmptyTitle>
@@ -210,13 +224,39 @@ export function RandomWalkPage() {
               <>
                 <MemoSnapshotCard
                   badge={viaLabel(step, t)}
+                  key={step.memo.name}
                   locale={locale}
                   memo={step.memo}
                 />
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
                   <Button
-                    disabled={pending || exhausted}
-                    onClick={() => void walk()}
+                    disabled={cursor === 0}
+                    variant="ghost"
+                    onClick={() => keyActionsRef.current.back()}
+                  >
+                    <ArrowLeftIcon data-icon="inline-start" />
+                    {t("review.walkBack")}
+                  </Button>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">
+                    {t("review.walkKeyHint")}
+                  </span>
+                  <Button
+                    className="ms-auto"
+                    disabled={pending}
+                    variant="ghost"
+                    onClick={() => setFinished(true)}
+                  >
+                    {t("review.walkFinish")}
+                  </Button>
+                  <Button
+                    disabled={
+                      pending || (exhausted && cursor >= steps.length - 1)
+                    }
+                    onClick={() =>
+                      cursor < steps.length - 1
+                        ? setCursor(cursor + 1)
+                        : void walk()
+                    }
                   >
                     {pending ? (
                       <Spinner data-icon="inline-start" />
@@ -224,17 +264,8 @@ export function RandomWalkPage() {
                       <FootprintsIcon data-icon="inline-start" />
                     )}
                     {t("review.walkContinue")}
+                    <ArrowRightIcon data-icon="inline-end" />
                   </Button>
-                  <Button
-                    disabled={pending}
-                    variant="outline"
-                    onClick={() => setFinished(true)}
-                  >
-                    {t("review.walkFinish")}
-                  </Button>
-                  <span className="hidden text-xs text-muted-foreground sm:inline">
-                    {t("review.walkKeyHint")}
-                  </span>
                 </div>
                 {exhausted && (
                   <div className="rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
@@ -268,10 +299,12 @@ export function RandomWalkPage() {
                         <button
                           aria-current={index === cursor ? "step" : undefined}
                           className={cn(
+                            // A selector, like FilterPill: card face and
+                            // hairline at rest, solid ink when current.
                             "flex h-8 w-8 items-center justify-center rounded-lg border text-xs tabular-nums motion-safe:transition-colors motion-safe:duration-150",
                             index === cursor
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                              ? "border-foreground bg-foreground text-background"
+                              : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
                           )}
                           key={item.memo.name}
                           title={formatMemoTime(item.memo.create_time, locale)}
@@ -310,7 +343,7 @@ function WalkPostcard({
   return (
     <Card className="border-brand-300/40 ring-brand-400/20 dark:border-brand-400/25">
       <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
-        <p className="text-xs tracking-[0.3em] text-muted-foreground uppercase">
+        <p className="text-xs font-medium text-muted-foreground">
           {t("review.postcardTitle")}
         </p>
         <p className="font-heading text-2xl font-semibold">

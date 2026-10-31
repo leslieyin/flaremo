@@ -31,6 +31,10 @@
 | :---: | :---: | :---: |
 | <img src="./docs/assets/flaremo-desktop-light.png" width="360" alt="Interfaz de escritorio de FlareMo en modo claro" /> | <img src="./docs/assets/flaremo-desktop-dark.png" width="360" alt="Interfaz de escritorio de FlareMo en modo oscuro" /> | <img src="./docs/assets/flaremo-mobile.png" width="168" alt="Interfaz móvil de FlareMo" /> |
 
+| ✅ Tareas, proyectos y repaso | 📄 Artículos y publicación |
+| :---: | :---: |
+| <img src="./docs/assets/flaremo-tasks.png" width="560" alt="Tareas, proyectos y repaso" /> | <img src="./docs/assets/flaremo-articles.png" width="560" alt="Artículos y publicación" /> |
+
 <sub>Capturas reales de la aplicación: alternancia fluida entre temas claro y oscuro y diseño móvil completamente adaptable. Cada funcionalidad mostrada está conectada al backend.</sub>
 
 </div>
@@ -39,7 +43,7 @@
 
 ## 💡 ¿Por qué elegir FlareMo?
 
-Herramientas como Flomo y Memos han demostrado el inmenso valor de registrar notas sin fricción en una línea de tiempo limpia. Sin embargo, autohospedar un sistema de notas tradicional suele significar pagar un VPS, configurar Docker y PostgreSQL, mantener scripts de respaldo y vivir con el miedo a un fallo de disco o de hardware.
+Registrar notas sin fricción en una línea de tiempo limpia ya ha demostrado su valor. Sin embargo, autohospedar un sistema de notas tradicional suele significar pagar un VPS, configurar Docker y PostgreSQL, mantener scripts de respaldo y vivir con el miedo a un fallo de disco o de hardware.
 
 FlareMo responde a una pregunta más simple: **¿Es posible tener una base de conocimiento en línea las 24 horas, resiliente, con aceleración global y sin mantenimiento de servidores, usando solo una cuenta gratuita de Cloudflare?**
 
@@ -55,7 +59,7 @@ FlareMo responde a una pregunta más simple: **¿Es posible tener una base de co
 
 ### 1. Captura instantánea y revisión que inspira
 - **Captura en milisegundos**: Línea de tiempo en tarjetas, etiquetas, Markdown/GFM y vista previa de imágenes y audios adjuntos.
-- **Notas y textos largos**: El editor sigue siendo una nota rápida (etiquetas, hasta 9 imágenes, negrita, listas, pendientes); «Escribir texto largo» abre un lienzo a pantalla completa para artículos.
+- **Notas y artículos**: El editor sigue siendo una nota rápida (etiquetas, hasta 9 imágenes, negrita, listas, pendientes); «Escribir a pantalla completa» abre la misma nota en un lienzo a pantalla completa. Los artículos se escriben desde la página Artículos.
 - **Comentarios bajo la nota**: Comenta cualquier nota, en tu espacio personal o en el del equipo, como en Weibo. Los comentarios viven bajo la nota original y quedan fuera de la línea de tiempo, la búsqueda, las estadísticas, las etiquetas y la revisión.
 - **Búsqueda ultrarrápida**: Indexación de texto completo SQLite FTS5 con operadores de consulta (`has:attachment`, `is:pinned`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, `in:timeline|archive|trash`).
 - **Búsqueda semántica («Find» vectorial)**: Embeddings de Workers AI combinados con índices vectoriales derivados de Vectorize para recordar por contexto; revalida permisos contra D1 y degrada con elegancia a FTS5.
@@ -90,7 +94,7 @@ FlareMo responde a una pregunta más simple: **¿Es posible tener una base de co
 ### 6. Sin conexión primero y experiencia PWA
 - **PWA instalable**: Instala FlareMo en la pantalla de inicio de macOS, Windows, iOS o Android con tacto de app nativa.
 - **Sincronización offline fiable**: Los borradores se guardan al instante en local; los envíos y las subidas sin conexión se ponen en cola y se reproducen automáticamente al recuperar la red.
-- **Captura de voz en vivo**: Accede a `/capture` para transcripción de voz a texto en streaming en tiempo real (ASR).
+- **Dictado por voz en vivo**: El botón de micrófono del editor transcribe la voz en tiempo real (ASR) directamente en el borrador.
 
 ### 7. Seguridad robusta con Better Auth
 - **Impulsado por Better Auth**: Sesiones por cookie de navegador `HttpOnly` y `SameSite=Lax`; tokens de acceso personal `memos_pat_` revocables para scripts, CLI y MCP.
@@ -99,7 +103,7 @@ FlareMo responde a una pregunta más simple: **¿Es posible tener una base de co
 ### 8. Compatibilidad con Memos y migración sin costuras
 - **Compatibilidad con la API `/api/v1` de Memos**: Proporciona los endpoints principales de la API de Memos (camelCase por defecto, snake_case heredado vía cabecera) y el esquema OpenAPI.
 - **Listo para apps de terceros**: Funciona directamente con clientes móviles como Moe Memos.
-- **Importación y exportación bidireccionales**: Importación en un clic desde Memos / flomo con estrategias de conflicto y paquetes de exportación completos en formato original.
+- **Importación y exportación bidireccionales**: paquetes de exportación completos, importación en un clic con estrategias de conflicto y un conversor para exportaciones de Memos 0.31 ([guía](./docs/en/import-from-memos.md)).
 
 ---
 

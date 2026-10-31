@@ -123,7 +123,7 @@ export function MonthHorizonPureView({
             return (
               <div
                 aria-hidden="true"
-                className="pointer-events-none h-8.5 w-full"
+                className="pointer-events-none mx-auto aspect-square w-full max-w-8"
                 key={cell.key}
               />
             );
@@ -140,22 +140,23 @@ export function MonthHorizonPureView({
           const [q0, q1, q2, q3] = dayQuadrants.get(cell.key) ?? [0, 0, 0, 0];
 
           // ── 100% 对齐年视图：统一采用相同的质感与深浅阶梯 ──
-          // Ember 2 heat: empty days carry no fill at all; activity is a
-          // tint ramp of the primary, solid only for the busiest days.
+          // Ember 3 heat: the tint carries the activity, the figure stays
+          // ink (red numerals on every busy day read as alarms). Only the
+          // busiest step is solid, with its own foreground.
           const activityStyle =
             totalCount <= 0
               ? "text-foreground/70 hover:bg-muted"
               : totalCount === 1
-                ? "bg-primary/12 text-brand-700 hover:bg-primary/18 dark:bg-primary/16 dark:text-brand-200"
+                ? "bg-primary/10 text-foreground hover:bg-primary/16 dark:bg-primary/14"
                 : totalCount === 2
-                  ? "bg-primary/24 text-brand-700 hover:bg-primary/30 dark:bg-primary/28 dark:text-brand-100"
+                  ? "bg-primary/20 text-foreground hover:bg-primary/26 dark:bg-primary/24"
                   : totalCount <= 4
-                    ? "bg-primary/45 text-brand-700 hover:bg-primary/52 dark:bg-primary/50 dark:text-white"
-                    : "bg-primary text-primary-foreground hover:bg-primary/90";
+                    ? "bg-primary/36 text-foreground hover:bg-primary/42 dark:bg-primary/40"
+                    : "bg-primary font-medium text-primary-foreground hover:bg-primary/90";
           return (
             <button
               className={cn(
-                "group relative flex h-8.5 w-full cursor-pointer items-center justify-center rounded-md outline-none transition-colors select-none focus-visible:ring-3 focus-visible:ring-ring/30",
+                "group relative mx-auto flex aspect-square w-full max-w-8 cursor-pointer items-center justify-center rounded-md outline-none transition-colors select-none focus-visible:ring-3 focus-visible:ring-ring/30",
                 activityStyle,
                 // Selection is an ink ring (works over every heat level);
                 // today is marked by weight + the dot below, not a box.
@@ -195,6 +196,8 @@ export function MonthHorizonPureView({
                   className={cn(
                     "text-xs leading-none tabular-nums transition-opacity group-hover:opacity-0",
                     totalCount > 0 ? "font-semibold" : "font-normal",
+                    // Room for the today dot underneath, even in a 24px cell.
+                    isToday && "-translate-y-[2px]",
                   )}
                 >
                   {dayNum}
@@ -206,14 +209,14 @@ export function MonthHorizonPureView({
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "absolute bottom-1 left-1/2 -translate-x-1/2 size-1 rounded-full transition-colors",
+                    "absolute bottom-[2px] left-1/2 -translate-x-1/2 size-[3px] rounded-full transition-colors",
                     totalCount >= 5 ? "bg-primary-foreground/85" : "bg-primary",
                   )}
                 />
               )}
 
               {/* Hover Stacked Micro-Stripes: Previews the single vertical column of Day view! */}
-              <div className="absolute inset-0 flex flex-col justify-center gap-[1.5px] p-1.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-card pointer-events-none ring-1 ring-border">
+              <div className="absolute inset-0 flex flex-col justify-center gap-[1.5px] p-1 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-card pointer-events-none ring-1 ring-border">
                 <div
                   className={cn(
                     "h-[2px] w-full rounded-[0.5px] transition-colors",

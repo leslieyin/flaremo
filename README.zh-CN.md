@@ -31,6 +31,10 @@
 | :---: | :---: | :---: |
 | <img src="./docs/assets/flaremo-desktop-light.png" width="360" alt="FlareMo 桌面端浅色界面" /> | <img src="./docs/assets/flaremo-desktop-dark.png" width="360" alt="FlareMo 桌面端深色界面" /> | <img src="./docs/assets/flaremo-mobile.png" width="168" alt="FlareMo 移动端界面" /> |
 
+| ✅ 待办、项目与回顾 | 📄 文章与发布 |
+| :---: | :---: |
+| <img src="./docs/assets/flaremo-tasks.png" width="560" alt="待办、项目与回顾" /> | <img src="./docs/assets/flaremo-articles.png" width="560" alt="文章与发布" /> |
+
 <sub>真实运行界面：支持深浅主题无缝切换与全功能移动端自适应。所有展示功能均已稳定接入后端，不放未实现的占位按钮。</sub>
 
 </div>
@@ -39,7 +43,7 @@
 
 ## 💡 为什么选择 FlareMo
 
-Flomo 和 Memos 证明了「快速捕捉 + 流式时间线」这种无压力记录体验的巨大价值。但自部署传统的笔记系统通常意味着：你需要一台按月付费的 VPS、安装并配置 Docker / Postgres、编写定时备份脚本，还要时刻提防硬盘损坏或硬件故障导致的数据损失。
+「快速捕捉 + 流式时间线」这种无压力记录体验的价值已经得到证明。但自部署传统的笔记系统通常意味着：你需要一台按月付费的 VPS、安装并配置 Docker / Postgres、编写定时备份脚本，还要时刻提防硬盘损坏或硬件故障导致的数据损失。
 
 FlareMo 回答了一个更简单的问题：**仅凭一个免费的 Cloudflare 账号、零服务器维护，你能拥有一个 7×24 小时在线、有韧性、全球加速的知识库吗？**
 
@@ -55,7 +59,7 @@ FlareMo 回答了一个更简单的问题：**仅凭一个免费的 Cloudflare �
 
 ### 1. 极速速记与沉浸式回顾
 - **毫秒级捕捉**：卡片式时间线，支持标签、Markdown/GFM，以及图片与音频附件预览。
-- **便签与长文**：输入框始终是一张快速便签（标签、最多 9 张图片、加粗、列表、待办）；点「写长文」打开全屏画布撰写文章。
+- **记录与文章**：输入框始终是一条快速记录（标签、最多 9 张图片、加粗、列表、待办）；点「全屏书写」可以在全屏画布里继续写同一条记录。文章从「文章」页开始写。
 - **笔记下的评论**：类似微博，个人空间与团队空间的任意笔记都可评论。评论挂在原笔记下方，不进入时间线、搜索、统计、标签与回顾。
 - **极速搜索**：SQLite FTS5 全文索引，支持查询操作符（`has:attachment`、`is:pinned`、`before:YYYY-MM-DD`、`after:YYYY-MM-DD`、`in:timeline|archive|trash`）。
 - **语义「找一找」（向量搜索）**：Workers AI embedding 搭配 Vectorize 派生向量索引，按上下文语义召回；结果会对照 D1 二次校验权限，并无缝降级到 FTS5。
@@ -90,7 +94,7 @@ FlareMo 回答了一个更简单的问题：**仅凭一个免费的 Cloudflare �
 ### 6. 离线优先与 PWA 体验
 - **可安装 PWA**：一键安装到 macOS、Windows、iOS 或 Android 主屏幕，原生 App 级体验。
 - **可靠的离线同步**：草稿即刻本地保存。离线提交与上传进入待同步队列，恢复网络后自动重放。
-- **实时语音捕捉**：访问 `/capture` 即可获得实时流式语音转文字（ASR）。
+- **实时语音输入**：点输入框的麦克风按钮，边说边把语音实时转成文字（ASR）写进草稿。
 
 ### 7. 坚固的 Better Auth 应用安全
 - **Better Auth 驱动**：浏览器使用 HttpOnly、`SameSite=Lax` Cookie 会话；脚本、CLI 与 MCP 使用可撤销的 `memos_pat_` 个人访问令牌。
@@ -99,7 +103,7 @@ FlareMo 回答了一个更简单的问题：**仅凭一个免费的 Cloudflare �
 ### 8. Memos 兼容与无缝迁移
 - **Memos `/api/v1` 兼容**：提供核心 Memos API 端点（默认 camelCase，经请求头可切换 legacy snake_case）与 OpenAPI 契约。
 - **第三方客户端开箱即用**：直接兼容 Moe Memos 等移动端客户端。
-- **双向导入导出**：从 Memos / flomo 一键导入（带冲突处理策略），并支持全量原始数据导出包。
+- **双向导入导出**：全量原始数据导出包、带冲突处理策略的一键导入，并提供 Memos 0.31 导出包的转换脚本（[指南](./docs/import-from-memos.md)）。
 
 ---
 

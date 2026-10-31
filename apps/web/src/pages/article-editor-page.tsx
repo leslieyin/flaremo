@@ -21,7 +21,7 @@ import {
   TableIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   type Article,
@@ -55,6 +55,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n";
 import { uploadAndInsertImages } from "@/lib/rich-editor-upload";
+import { cn } from "@/lib/utils";
 
 const AUTOSAVE_DEBOUNCE_MS = 2000;
 
@@ -99,6 +100,17 @@ export function ArticleEditorPage({ articleId }: { articleId: string }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [previewMode, setPreviewMode] = useState(false);
+  const [activeTools, setActiveTools] = useState<Partial<ArticleActiveTools>>(
+    {},
+  );
+  // Runs on every transaction; keep the old object when nothing changed so
+  // a caret move does not re-render the page.
+  const syncActiveTools = (editor: Editor) => {
+    const next = readArticleActiveTools(editor);
+    setActiveTools((prev) =>
+      ARTICLE_TOOL_STATES.every((key) => prev[key] === next[key]) ? prev : next,
+    );
+  };
   const [publishOpen, setPublishOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [savedArticle, setSavedArticle] = useState<Article | null>(null);
@@ -274,201 +286,257 @@ export function ArticleEditorPage({ articleId }: { articleId: string }) {
   const shownArticle = savedArticle ?? article;
 
   return (
-    <div className={containerClass}>
+    <div>
       {/* One quiet bar for state and actions, the page itself for writing:
-          the title is the article's first line, not a form field. */}
-      <header className="flex items-center gap-1 pt-3">
-        <Button
-          aria-label={t("common.back")}
-          onClick={() => navigate({ to: "/articles" })}
-          size="icon-sm"
-          type="button"
-          variant="ghost"
-        >
-          <ArrowLeftIcon />
-        </Button>
-        <span
-          className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
-          data-article-save-state={saveState}
-        >
-          {saveState === "saving"
-            ? t("article.saving")
-            : saveState === "dirty"
-              ? t("article.unsaved")
-              : t("article.saved")}
-          <span className="hidden sm:inline">
-            {" · "}
-            {t("article.wordCount", { count: countArticleChars(content) })}
-          </span>
-        </span>
-        {isPublished && (
+          the title is the article's first line, not a form field. The bar
+          stays pinned so save state and publish remain in reach on long
+          articles. It spans the full width and carries the body's paper
+          grain, so the pinned band reads as the same sheet, not a strip. */}
+      <header className="sticky top-0 z-20 bg-background/90 bg-(image:--paper-grain) backdrop-blur-sm">
+        <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-1 px-4">
           <Button
-            aria-label={t("article.viewPublic")}
-            onClick={() =>
-              window.open(`/article/${shownArticle.slug}`, "_blank")
+            aria-label={t("common.back")}
+            onClick={() => navigate({ to: "/articles" })}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          >
+            <ArrowLeftIcon />
+          </Button>
+          <span
+            className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
+            data-article-save-state={saveState}
+          >
+            {saveState === "saving"
+              ? t("article.saving")
+              : saveState === "dirty"
+                ? t("article.unsaved")
+                : t("article.saved")}
+            <span className="hidden sm:inline">
+              {" · "}
+              {t("article.wordCount", { count: countArticleChars(content) })}
+            </span>
+          </span>
+          {isPublished && (
+            <Button
+              aria-label={t("article.viewPublic")}
+              onClick={() =>
+                window.open(`/article/${shownArticle.slug}`, "_blank")
+              }
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <ExternalLinkIcon data-icon="inline-start" />
+              <span className="hidden sm:inline">
+                {t("article.viewPublic")}
+              </span>
+            </Button>
+          )}
+          <Button
+            aria-label={
+              previewMode ? t("article.editMode") : t("article.previewAction")
             }
+            onClick={() => setPreviewMode((mode) => !mode)}
             size="sm"
             type="button"
             variant="ghost"
           >
-            <ExternalLinkIcon data-icon="inline-start" />
-            <span className="hidden sm:inline">{t("article.viewPublic")}</span>
+            {previewMode ? (
+              <PencilIcon data-icon="inline-start" />
+            ) : (
+              <EyeIcon data-icon="inline-start" />
+            )}
+            <span className="hidden sm:inline">
+              {previewMode ? t("article.editMode") : t("article.previewAction")}
+            </span>
           </Button>
-        )}
-        <Button
-          aria-label={
-            previewMode ? t("article.editMode") : t("article.previewAction")
-          }
-          onClick={() => setPreviewMode((mode) => !mode)}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          {previewMode ? (
-            <PencilIcon data-icon="inline-start" />
-          ) : (
-            <EyeIcon data-icon="inline-start" />
-          )}
-          <span className="hidden sm:inline">
-            {previewMode ? t("article.editMode") : t("article.previewAction")}
-          </span>
-        </Button>
-        <Button
-          disabled={isUploadingImages}
-          onClick={() => setPublishOpen(true)}
-          size="sm"
-          type="button"
-          variant={isPublished ? "outline" : "default"}
-        >
-          {isUploadingImages && <Spinner data-icon="inline-start" />}
-          {isPublished
-            ? t("article.publishedBadge")
-            : t("article.publishAction")}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                aria-label={t("common.more")}
-                size="icon-sm"
-                type="button"
-                variant="ghost"
+          <Button
+            disabled={isUploadingImages}
+            onClick={() => setPublishOpen(true)}
+            size="sm"
+            type="button"
+            variant={isPublished ? "outline" : "default"}
+          >
+            {isUploadingImages && <Spinner data-icon="inline-start" />}
+            {isPublished
+              ? t("article.publishedBadge")
+              : t("article.publishAction")}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  aria-label={t("common.more")}
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <MoreHorizontalIcon />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={deleteMutation.isPending}
+                variant="destructive"
+                onClick={() => setConfirmingDelete(true)}
               >
-                <MoreHorizontalIcon />
-              </Button>
-            }
-          />
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              disabled={deleteMutation.isPending}
-              variant="destructive"
-              onClick={() => setConfirmingDelete(true)}
-            >
-              <Trash2Icon />
-              {t("common.delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+                <Trash2Icon />
+                {t("common.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
-      <textarea
-        aria-label={t("article.titleLabel")}
-        className="field-sizing-content mt-4 w-full resize-none bg-transparent font-heading text-3xl leading-tight font-semibold tracking-tight outline-none placeholder:text-foreground/30"
-        rows={1}
-        onChange={(event) => {
-          // The refs — not React state — are what the debounced save reads
-          // (state is stale inside the timer closure), so both must update
-          // on every keystroke. A title is one line: newlines are dropped.
-          const value = event.target.value.replace(/\n/g, " ");
-          titleRef.current = value;
-          setTitle(value);
-          scheduleSave();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            editorRef.current?.commands.focus("start");
-          }
-        }}
-        placeholder={t("article.titlePlaceholder")}
-        value={title}
-      />
+      <div className={`${containerClass} pt-3`}>
+        <textarea
+          aria-label={t("article.titleLabel")}
+          className={cn(
+            "field-sizing-content mt-2 w-full resize-none bg-transparent leading-tight font-semibold tracking-tight outline-none placeholder:text-foreground/30",
+            // Preview sets the title the way the public page does: same
+            // serif, size and measure as the body below it.
+            previewMode
+              ? "article-paper mb-[0.6em] text-[1.85rem] leading-[1.3] tracking-[-0.01em]"
+              : "font-heading text-3xl",
+          )}
+          rows={1}
+          readOnly={previewMode}
+          onChange={(event) => {
+            // The refs — not React state — are what the debounced save reads
+            // (state is stale inside the timer closure), so both must update
+            // on every keystroke. A title is one line: newlines are dropped.
+            const value = event.target.value.replace(/\n/g, " ");
+            titleRef.current = value;
+            setTitle(value);
+            scheduleSave();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              editorRef.current?.commands.focus("start");
+            }
+          }}
+          placeholder={t("article.titlePlaceholder")}
+          value={title}
+        />
 
-      {previewMode ? (
-        <div className="memo-markdown min-h-svh px-2 text-[15px] leading-7">
-          <h1 className="mb-2 text-2xl font-semibold tracking-tight">
-            {title || t("article.titlePlaceholder")}
-          </h1>
-          <ArticleShikiBody content={content} />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <ArticleToolbar editorRef={editorRef} />
-          <ArticleEditor
-            content={content}
-            disabled={false}
-            editorRef={editorRef}
-            onContentChange={(next) => {
-              contentRef.current = next;
-              setContent(next);
-              scheduleSave();
-            }}
-            onImageFiles={enqueueInlineUploads}
-            placeholder={t("article.contentPlaceholder")}
-          />
-        </div>
-      )}
+        {previewMode ? (
+          // The title line above already reads as the article's heading; the
+          // preview renders only the body, aligned with the editing surface.
+          <div className="article-paper min-h-svh pt-2 pb-16">
+            <ArticleShikiBody content={content} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <ArticleToolbar active={activeTools} editorRef={editorRef} />
+            <ArticleEditor
+              content={content}
+              disabled={false}
+              editorRef={editorRef}
+              onContentChange={(next) => {
+                contentRef.current = next;
+                setContent(next);
+                scheduleSave();
+              }}
+              onImageFiles={enqueueInlineUploads}
+              onTransaction={syncActiveTools}
+              placeholder={t("article.contentPlaceholder")}
+            />
+          </div>
+        )}
 
-      <ArticlePublishDialog
-        article={shownArticle}
-        onOpenChange={setPublishOpen}
-        onPublished={(updated) => {
-          setSavedArticle(updated);
-          void queryClient.invalidateQueries({ queryKey: ["articles"] });
-        }}
-        onUnpublished={(updated) => {
-          setSavedArticle(updated);
-          void queryClient.invalidateQueries({ queryKey: ["articles"] });
-        }}
-        open={publishOpen}
-      />
-      <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("article.deleteConfirm")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("article.deleteDescription")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate()}
-              variant="destructive"
-            >
-              {t("common.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <ArticlePublishDialog
+          article={shownArticle}
+          onOpenChange={setPublishOpen}
+          onPublished={(updated) => {
+            setSavedArticle(updated);
+            void queryClient.invalidateQueries({ queryKey: ["articles"] });
+          }}
+          onUnpublished={(updated) => {
+            setSavedArticle(updated);
+            void queryClient.invalidateQueries({ queryKey: ["articles"] });
+          }}
+          open={publishOpen}
+        />
+        <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("article.deleteConfirm")}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("article.deleteDescription")}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+                variant="destructive"
+              >
+                {t("common.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
 
+/** Marks and blocks the toolbar lights up when the caret sits inside them. */
+const ARTICLE_TOOL_STATES = [
+  "h2",
+  "h3",
+  "bold",
+  "italic",
+  "strike",
+  "code",
+  "bulletList",
+  "orderedList",
+  "taskList",
+  "blockquote",
+] as const;
+type ArticleToolState = (typeof ARTICLE_TOOL_STATES)[number];
+type ArticleActiveTools = Record<ArticleToolState, boolean>;
+
+function readArticleActiveTools(editor: Editor): ArticleActiveTools {
+  return {
+    h2: editor.isActive("heading", { level: 2 }),
+    h3: editor.isActive("heading", { level: 3 }),
+    bold: editor.isActive("bold"),
+    italic: editor.isActive("italic"),
+    strike: editor.isActive("strike"),
+    code: editor.isActive("code"),
+    bulletList: editor.isActive("bulletList"),
+    orderedList: editor.isActive("orderedList"),
+    taskList: editor.isActive("taskList"),
+    blockquote: editor.isActive("blockquote"),
+  };
+}
+
 function ArticleToolbar({
   editorRef,
+  active,
 }: {
   editorRef: React.RefObject<Editor | null>;
+  active: Partial<ArticleActiveTools>;
 }) {
   const { t } = useI18n();
   const run = (action: (editor: Editor) => void) => () => {
     const editor = editorRef.current;
     if (editor) action(editor);
   };
-  const tools = [
+  const tools: {
+    icon: React.ReactNode;
+    label: string;
+    state?: ArticleToolState;
+    run: () => void;
+  }[] = [
     {
       icon: <Heading2Icon className="size-4" />,
       label: t("article.toolH2"),
+      state: "h2" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleHeading({ level: 2 }).run();
       }),
@@ -476,6 +544,7 @@ function ArticleToolbar({
     {
       icon: <Heading3Icon className="size-4" />,
       label: t("article.toolH3"),
+      state: "h3" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleHeading({ level: 3 }).run();
       }),
@@ -483,6 +552,7 @@ function ArticleToolbar({
     {
       icon: <BoldIcon className="size-4" />,
       label: t("article.toolBold"),
+      state: "bold" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleBold().run();
       }),
@@ -490,6 +560,7 @@ function ArticleToolbar({
     {
       icon: <ItalicIcon className="size-4" />,
       label: t("article.toolItalic"),
+      state: "italic" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleItalic().run();
       }),
@@ -497,6 +568,7 @@ function ArticleToolbar({
     {
       icon: <StrikethroughIcon className="size-4" />,
       label: t("article.toolStrike"),
+      state: "strike" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleStrike().run();
       }),
@@ -504,6 +576,7 @@ function ArticleToolbar({
     {
       icon: <CodeIcon className="size-4" />,
       label: t("article.toolCode"),
+      state: "code" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleCode().run();
       }),
@@ -511,6 +584,7 @@ function ArticleToolbar({
     {
       icon: <ListIcon className="size-4" />,
       label: t("article.toolBulletList"),
+      state: "bulletList" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleBulletList().run();
       }),
@@ -518,6 +592,7 @@ function ArticleToolbar({
     {
       icon: <ListOrderedIcon className="size-4" />,
       label: t("article.toolOrderedList"),
+      state: "orderedList" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleOrderedList().run();
       }),
@@ -525,6 +600,7 @@ function ArticleToolbar({
     {
       icon: <ListTodoIcon className="size-4" />,
       label: t("article.toolTaskList"),
+      state: "taskList" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleTaskList().run();
       }),
@@ -532,6 +608,7 @@ function ArticleToolbar({
     {
       icon: <QuoteIcon className="size-4" />,
       label: t("article.toolQuote"),
+      state: "blockquote" as ArticleToolState,
       run: run((editor) => {
         editor.chain().focus().toggleBlockquote().run();
       }),
@@ -555,20 +632,41 @@ function ArticleToolbar({
       }),
     },
   ];
+  // Grouped as headings · inline marks · lists · blocks; thin rules between
+  // groups keep twelve identical icon buttons scannable.
+  const groupEnds = new Set([
+    t("article.toolH3"),
+    t("article.toolCode"),
+    t("article.toolTaskList"),
+  ]);
   return (
-    <div className="flex flex-wrap gap-1 rounded-lg border border-border/60 p-1">
+    // Pinned under the header so formatting stays a glance away on long
+    // articles; one scrollable line instead of wrapping into two on phones.
+    <div className="no-scrollbar sticky top-14 z-10 flex items-center gap-0.5 overflow-x-auto rounded-lg border border-border/60 bg-background/90 p-1 backdrop-blur-sm">
       {tools.map((tool) => (
-        <Button
-          aria-label={tool.label}
-          key={tool.label}
-          onClick={tool.run}
-          size="icon"
-          title={tool.label}
-          type="button"
-          variant="ghost"
-        >
-          {tool.icon}
-        </Button>
+        <Fragment key={tool.label}>
+          <Button
+            aria-label={tool.label}
+            aria-pressed={tool.state ? Boolean(active[tool.state]) : undefined}
+            className="shrink-0 aria-pressed:bg-muted aria-pressed:text-foreground"
+            // Keep the editor's selection: a toolbar click must not blur it
+            // first, or the pressed state flickers off before the toggle.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={tool.run}
+            size="icon"
+            title={tool.label}
+            type="button"
+            variant="ghost"
+          >
+            {tool.icon}
+          </Button>
+          {groupEnds.has(tool.label) && (
+            <span
+              aria-hidden="true"
+              className="mx-1 h-5 w-px shrink-0 bg-border"
+            />
+          )}
+        </Fragment>
       ))}
     </div>
   );

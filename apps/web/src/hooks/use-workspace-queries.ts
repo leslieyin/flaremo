@@ -3,9 +3,9 @@ import { useCallback, useMemo, useState } from "react";
 import {
   getCaptureStatus,
   getCurrentFlareMoUser,
-  getDailyReview,
   getMemoStats,
   getTagHierarchy,
+  getTodayReview,
   getVectorUsage,
   listMemos,
   type MemoSpace,
@@ -184,7 +184,13 @@ export function useWorkspaceQueries({
   // Readers (time-boxed read-only seats) browse the team space but never
   // publish into it; their composer target stays personal everywhere.
   const isReader = currentUserQuery.data?.role === "reader";
-  const canPublishTeam = Boolean(currentUserQuery.data?.team) && !isReader;
+  // A team the viewer is alone in is not a second space: the personal/team
+  // split (scope menu, composer visibility) only appears once someone else
+  // holds a seat. Older servers omit member_count; keep showing it then.
+  const rawTeam = currentUserQuery.data?.team ?? null;
+  const sharedTeam =
+    rawTeam && (rawTeam.member_count ?? 2) > 1 ? rawTeam : null;
+  const canPublishTeam = Boolean(sharedTeam) && !isReader;
   const teamExpired = Boolean(currentUserQuery.data?.team_expired);
   // "On this day" teaser for the timeline top: notes from past years dated
   // today. The query shares the daily-review page's cache entry, so landing
@@ -202,15 +208,18 @@ export function useWorkspaceQueries({
     !activeTag &&
     !untagged &&
     !isSemanticSearch;
+  // The banner counts what is left of today's review stack, so it goes away
+  // once the stack is read (on any device).
   const onThisDayQuery = useQuery({
-    queryKey: ["daily-review", today, tzOffset],
+    queryKey: queryKeys.review.today(today, tzOffset),
     enabled: onThisDayEnabled,
-    queryFn: () => getDailyReview(today, tzOffset),
+    queryFn: () => getTodayReview(today, tzOffset),
     staleTime: 60_000,
     retry: false,
   });
-  const showOnThisDayBanner =
-    onThisDayEnabled && (onThisDayQuery.data?.memos.length ?? 0) > 0;
+  const reviewRemaining =
+    onThisDayQuery.data?.items.filter((item) => !item.reviewed).length ?? 0;
+  const showOnThisDayBanner = onThisDayEnabled && reviewRemaining > 0;
 
   const memos = useMemo(
     () => memosQuery.data?.pages.flatMap((page) => page.memos) ?? [],
@@ -231,6 +240,7 @@ export function useWorkspaceQueries({
   return {
     attachmentsByMemo,
     canPublishTeam,
+    sharedTeam,
     captureStatusQuery,
     currentUserQuery,
     displayedMemos,
@@ -240,6 +250,7 @@ export function useWorkspaceQueries({
     matchingTasks,
     memosQuery,
     onThisDayQuery,
+    reviewRemaining,
     semanticEnabled,
     semanticMode,
     semanticResultsQuery,

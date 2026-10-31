@@ -31,6 +31,10 @@
 | :---: | :---: | :---: |
 | <img src="./docs/assets/flaremo-desktop-light.png" width="360" alt="Interface FlareMo thème clair" /> | <img src="./docs/assets/flaremo-desktop-dark.png" width="360" alt="Interface FlareMo thème sombre" /> | <img src="./docs/assets/flaremo-mobile.png" width="168" alt="Interface mobile FlareMo" /> |
 
+| ✅ Tâches, projets et relecture | 📄 Articles et publication |
+| :---: | :---: |
+| <img src="./docs/assets/flaremo-tasks.png" width="560" alt="Tâches, projets et relecture" /> | <img src="./docs/assets/flaremo-articles.png" width="560" alt="Articles et publication" /> |
+
 <sub>Captures réelles d'utilisation : transition fluide entre modes clair et sombre, design mobile entièrement réactif. Toutes les fonctionnalités présentées sont reliées au backend.</sub>
 
 </div>
@@ -39,7 +43,7 @@
 
 ## 💡 Pourquoi choisir FlareMo ?
 
-Les outils comme Flomo ou Memos ont démontré la puissance d'une capture d'idées fluide et d'un fil chronologique sans distraction. Cependant, auto-héberger un système traditionnel implique souvent de payer un VPS chaque mois, de configurer Docker et PostgreSQL, d'écrire des scripts de sauvegarde et de redouter la panne d'un disque dur.
+La capture d'idées fluide et le fil chronologique sans distraction ont prouvé leur valeur. Auto-héberger un système traditionnel implique pourtant souvent de payer un VPS chaque mois, de configurer Docker et PostgreSQL, d'écrire des scripts de sauvegarde et de redouter la panne d'un disque dur.
 
 FlareMo répond à une question plus simple : **Peut-on obtenir une base de connaissances en ligne 24h/24, résiliente, accélérée mondialement et sans maintenance de serveur, simplement avec un compte gratuit Cloudflare ?**
 
@@ -55,7 +59,7 @@ FlareMo répond à une question plus simple : **Peut-on obtenir une base de conn
 
 ### 1. Capture instantanée & Revue stimulante
 - **Prise de note immédiate** : Flux chronologique sous forme de cartes, multi-étiquettes, Markdown/GFM, prévisualisation des pièces jointes image et audio.
-- **Notes et textes longs** : L'éditeur reste une note rapide (étiquettes, jusqu'à 9 images, gras, listes, tâches) ; « Écrire un texte long » ouvre un canevas plein écran pour les articles.
+- **Notes et articles** : L'éditeur reste une note rapide (étiquettes, jusqu'à 9 images, gras, listes, tâches) ; « Écrire en plein écran » ouvre la même note dans un canevas plein écran. Les articles s'écrivent depuis la page Articles.
 - **Commentaires sous la note** : Commentez n'importe quelle note, dans votre espace personnel ou l'espace d'équipe, comme sur Weibo. Les commentaires restent sous la note d'origine et n'apparaissent ni dans le flux, ni dans la recherche, les statistiques, les étiquettes ou la revue.
 - **Recherche plein texte ultra-rapide** : Indexation SQLite FTS5 avec opérateurs de requête (`has:attachment`, `is:pinned`, `before:YYYY-MM-DD`, `after:YYYY-MM-DD`, `in:timeline|archive|trash`).
 - **Recherche sémantique vectorielle** : Embeddings Workers AI couplés aux index vectoriels dérivés de Vectorize pour un rappel contextuel ; re-vérification des permissions contre D1 et repli transparent sur FTS5.
@@ -90,7 +94,7 @@ FlareMo répond à une question plus simple : **Peut-on obtenir une base de conn
 ### 6. Mode hors-ligne & Expérience PWA
 - **PWA installable** : Installez FlareMo sur l'écran d'accueil de macOS, Windows, iOS ou Android, avec une sensation d'application native.
 - **Synchronisation hors-ligne fiable** : Les brouillons s'enregistrent localement instantanément. Les soumissions et envois hors-ligne sont mis en file d'attente et rejoués automatiquement dès le retour de la connexion.
-- **Dictée vocale en direct** : Page `/capture` avec transcription vocale continue en temps réel (ASR).
+- **Dictée vocale en direct** : Le bouton micro de l'éditeur transcrit la parole en temps réel (ASR) directement dans le brouillon.
 
 ### 7. Sécurité applicative Better Auth
 - **Propulsé par Better Auth** : Sessions par cookies `HttpOnly` et `SameSite=Lax` pour le navigateur ; jetons d'accès personnels révocables (`memos_pat_`) pour les scripts, le CLI et MCP.
@@ -99,7 +103,7 @@ FlareMo répond à une question plus simple : **Peut-on obtenir une base de conn
 ### 8. Compatibilité Memos & Migration sans friction
 - **Compatibilité `/api/v1` de Memos** : Fournit les principaux endpoints de l'API Memos (camelCase par défaut, snake_case historique via en-tête) et le schéma OpenAPI.
 - **Prêt pour les applications tierces** : Fonctionne directement avec des clients mobiles comme Moe Memos.
-- **Import / Export bidirectionnel** : Import en un clic depuis Memos / flomo avec stratégies de gestion des conflits et paquets d'export brut complets.
+- **Import / Export bidirectionnel** : paquets d'export brut complets, import en un clic avec stratégies de conflit, et un convertisseur pour les exports Memos 0.31 ([guide](./docs/en/import-from-memos.md)).
 
 ---
 
