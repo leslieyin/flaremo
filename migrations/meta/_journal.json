@@ -288,6 +288,27 @@
       "when": 1793434172636,
       "tag": "0040_memory_core_rules_locked",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1793508981703,
+      "tag": "0041_attachment_thumbnail_size",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1793513646935,
+      "tag": "0042_import_task_rows",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1793514034532,
+      "tag": "0043_data_task_options",
+      "breakpoints": true
     }
   ]
 }

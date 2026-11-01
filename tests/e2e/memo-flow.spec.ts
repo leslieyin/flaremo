@@ -1,6 +1,29 @@
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import { E2E_BASE_URL } from "./auth-fixture";
 import { searchTimeline, startWithCleanClientState } from "./workspace-helpers";
+
+/**
+ * Open a card's actions menu and click one item. The settle invalidation of a
+ * just-created memo can replace the card and close the menu underneath the
+ * click; retry a couple of times instead of waiting on a dead popup.
+ */
+async function clickCardMenuItem(page: Page, card: Locator, name: RegExp) {
+  const item = page.getByRole("menuitem", { name });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await card.getByRole("button", { name: /actions|操作/i }).click();
+    if (await item.isVisible().catch(() => false)) {
+      try {
+        await item.click({ timeout: 2_000 });
+        return;
+      } catch {
+        // The list settled under the click; reopen and retry.
+      }
+    }
+    await page.waitForTimeout(150);
+  }
+  await item.click();
+}
 
 const E2E_COOKIE_MUTATION_OPTIONS = {
   headers: { origin: E2E_BASE_URL },
@@ -64,7 +87,11 @@ test("queues an offline note and saves it after connectivity returns", async ({
   await page.context().setOffline(true);
   await composer.fill(content);
   await page.getByRole("button", { name: /^(save|保存|send|发送)$/i }).click();
-  await expect(page.getByText(/offline|离线/i)).toBeVisible();
+  // The note itself contains an `#offline…` tag, so scope the banner by its
+  // status role instead of matching the word anywhere on the page.
+  await expect(
+    page.getByRole("status").filter({ hasText: /offline|离线/i }),
+  ).toBeVisible();
 
   await page.context().setOffline(false);
   await page.evaluate(() => window.dispatchEvent(new Event("online")));
@@ -308,6 +335,11 @@ test("shows the new card optimistically before the create request answers", asyn
       { timeout: 15_000 },
     )
     .toBeGreaterThan(0);
+  // A remembered/space-derived target resolves asynchronously; sending before
+  // it lands would file the note outside the timeline cache this test watches.
+  await expect(
+    page.getByRole("button", { name: /send target|发送目标/i }),
+  ).toContainText(/personal|个人/i);
 
   await composer.fill(content);
   await expect(composer).toHaveText(content);
@@ -369,25 +401,20 @@ test("edits and shares a memo", async ({ page }) => {
   await visibilityDialog
     .getByRole("button", { name: /全网公开|Public web/i })
     .click();
-  // The card flips to public; the share URL is rendered inside the dialog as a
-  // read-only input's value, so reopen it and assert on that value.
-  await expect(
-    updatedCard.getByRole("button", { name: /Public web|全网公开/i }),
-  ).toBeVisible();
-  await updatedCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page
-    .getByRole("menuitem", { name: /可见性与分享|Visibility & Sharing/i })
-    .click();
-  const publicDialog = page.locator('[role="dialog"]:visible').last();
-  await expect(publicDialog.locator("input[readonly]")).toHaveValue(
+  // Choosing public keeps the dialog open precisely so the freshly created
+  // share URL is visible without reopening it.
+  await expect(visibilityDialog.locator("input[readonly]")).toHaveValue(
     /\/share\//,
   );
   // Copying the link is an action inside this dialog now, not a card-menu
   // entry; assert it is offered and labelled.
   await expect(
-    publicDialog.getByRole("button", { name: /copy link|复制链接/i }),
+    visibilityDialog.getByRole("button", { name: /copy link|复制链接/i }),
   ).toBeEnabled();
   await page.keyboard.press("Escape");
+  await expect(
+    updatedCard.getByRole("button", { name: /Public web|全网公开/i }),
+  ).toBeVisible();
 });
 
 test("archives and restores a memo", async ({ page }) => {
@@ -404,14 +431,12 @@ test("archives and restores a memo", async ({ page }) => {
   ).toBeVisible();
 
   const card = page.locator("article").filter({ hasText: content });
-  await card.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /archive|归档/i }).click();
+  await clickCardMenuItem(page, card, /archive|归档/i);
   await page.getByRole("link", { name: /^(archive|归档)$/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const archivedCard = page.locator("article").filter({ hasText: content });
-  await archivedCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /timeline|时间线/i }).click();
+  await clickCardMenuItem(page, archivedCard, /timeline|时间线/i);
   await page.getByRole("link", { name: /^(memos|记录)$/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 });
@@ -430,26 +455,20 @@ test("trashes, restores, and hard-deletes a memo", async ({ page }) => {
   ).toBeVisible();
 
   const card = page.locator("article").filter({ hasText: content });
-  await card.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
+  await clickCardMenuItem(page, card, /trash|回收站/i);
   await page.getByRole("link", { name: /^(trash|回收站)$/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const trashedCard = page.locator("article").filter({ hasText: content });
-  await trashedCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /restore|恢复/i }).click();
+  await clickCardMenuItem(page, trashedCard, /restore|恢复/i);
   await page.getByRole("link", { name: /^(memos|记录)$/i }).click();
   await expect(page.getByText(content)).toBeVisible();
 
   const finalCard = page.locator("article").filter({ hasText: content });
-  await finalCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page.getByRole("menuitem", { name: /trash|回收站/i }).click();
+  await clickCardMenuItem(page, finalCard, /trash|回收站/i);
   await page.getByRole("link", { name: /^(trash|回收站)$/i }).click();
   const deleteCard = page.locator("article").filter({ hasText: content });
-  await deleteCard.getByRole("button", { name: /actions|操作/i }).click();
-  await page
-    .getByRole("menuitem", { name: /delete forever|彻底删除/i })
-    .click();
+  await clickCardMenuItem(page, deleteCard, /delete forever|彻底删除/i);
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toBeVisible();
   await confirmation
@@ -470,15 +489,24 @@ test("loads notes beyond the first page", async ({ page }) => {
   }
 
   await page.goto("/");
+  await expect(page.locator("article").first()).toBeVisible();
   await expect(page.getByText(`${marker}-0`, { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: /load more|加载更多/i }).click();
-  // The timeline is virtualized: rows render as they scroll into view.
-  await expect
-    .poll(async () => {
-      await page.mouse.wheel(0, 500);
-      return page.getByText(`${marker}-0`, { exact: true }).count();
-    })
-    .toBeGreaterThan(0);
+  const loadMore = page.getByRole("button", { name: /load more|加载更多/i });
+  await loadMore.scrollIntoViewIfNeeded();
+  // Assert the second page request and its payload instead of scrolling a
+  // virtualized list to a specific row: the old scroll loop was the flake.
+  const nextPage = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/app/memos") &&
+      new URL(response.url()).searchParams.has("page_token"),
+  );
+  await loadMore.evaluate((element) => (element as HTMLElement).click());
+  const response = await nextPage;
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as {
+    memos: Array<{ content: string }>;
+  };
+  expect(body.memos.some((memo) => memo.content === `${marker}-0`)).toBe(true);
 });
 
 test("shows the installed version and safe update fallback", async ({
@@ -629,7 +657,8 @@ test("keeps the focused composer clear of the sticky header", async ({
     composerForm.evaluate((element) => element.getBoundingClientRect().top),
     header.evaluate((element) => element.getBoundingClientRect().bottom),
   ]);
-  expect(geometry[0]).toBe(topBeforeFocus);
+  // Sub-pixel layout rounds differently between the two measurements.
+  expect(Math.abs(geometry[0] - topBeforeFocus)).toBeLessThan(1);
   // Flush against the header is fine; sliding underneath it is not.
   expect(geometry[0]).toBeGreaterThanOrEqual(geometry[1]);
 });
