@@ -211,7 +211,7 @@ export const FlareMoExplorer = memo(function FlareMoExplorer({
           <button
             aria-pressed={untagged}
             className={cn(
-              "flex h-7 items-center gap-2.5 rounded-md ps-2.5 pe-1 text-[13px] text-left motion-safe:transition-colors motion-safe:duration-150",
+              "flex h-7 items-center gap-2.5 rounded-md ps-2.5 pe-1 text-[13px] text-start motion-safe:transition-colors motion-safe:duration-150",
               untagged
                 ? "bg-card font-medium text-foreground shadow-xs ring-1 ring-border/70 dark:bg-muted"
                 : "text-foreground/70 hover:bg-muted/70 hover:text-foreground",
@@ -374,7 +374,7 @@ function TagTree({
         >
           <button
             aria-pressed={isActive}
-            className="flex min-w-0 flex-1 items-center gap-2.5 text-left outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-3 focus-visible:after:ring-ring/25"
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-start outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-3 focus-visible:after:ring-ring/25"
             type="button"
             onClick={() => {
               onTagChange(isActive ? undefined : name);
@@ -404,7 +404,7 @@ function TagTree({
           {/* Count and menu share the trailing slot, like project rows on the
               to-do page: the menu takes over on hover and stays on touch. */}
           {node.count > 0 && (
-            <span className="min-w-5 shrink-0 text-end text-xs tabular-nums text-muted-foreground/70 group-focus-within:invisible group-hover:invisible [@media(pointer:coarse)]:invisible">
+            <span className="min-w-5 shrink-0 text-end text-xs tabular-nums text-muted-foreground group-focus-within:invisible group-hover:invisible [@media(pointer:coarse)]:invisible">
               {node.count}
             </span>
           )}

@@ -31,6 +31,7 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { useI18n } from "@/i18n";
 import { formatMemoRelativeTime, memoExcerpt } from "@/lib/memo";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
 export type SpotlightSearchProps = {
@@ -96,7 +97,7 @@ export function SpotlightSearch({
 
   // Instant global search probe across the entire corpus
   const remoteMemosQuery = useQuery({
-    queryKey: ["spotlight-remote-memos", debouncedDraft],
+    queryKey: queryKeys.spotlightRemoteMemos(debouncedDraft),
     queryFn: ({ signal }) =>
       listMemos({ q: debouncedDraft, page_size: 6 }, signal),
     enabled: open && debouncedDraft.length >= 1,
@@ -303,6 +304,15 @@ export function SpotlightSearch({
             </InputGroupAddon>
             <InputGroupInput
               ref={inputRef}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={actionItems.length > 0}
+              aria-controls="spotlight-results"
+              aria-activedescendant={
+                selectedIndex >= 0 && selectedIndex < actionItems.length
+                  ? `spotlight-option-${selectedIndex}`
+                  : undefined
+              }
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
@@ -360,7 +370,12 @@ export function SpotlightSearch({
         </div>
 
         {/* Results / Suggestions List */}
-        <div className="max-h-[min(380px,50vh)] overflow-y-auto p-1.5">
+        <div
+          aria-label={t("search.spotlightPlaceholder")}
+          className="max-h-[min(380px,50vh)] overflow-y-auto p-1.5"
+          id="spotlight-results"
+          role="listbox"
+        >
           {actionItems.length > 0 ? (
             <div className="flex flex-col gap-0.5">
               {actionItems.map((item, idx) => {
@@ -369,11 +384,14 @@ export function SpotlightSearch({
                 return (
                   <button
                     key={item.id}
+                    id={`spotlight-option-${idx}`}
+                    role="option"
+                    aria-selected={isSelected}
                     type="button"
                     onClick={item.onExecute}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={cn(
-                      "flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors duration-100",
+                      "flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-start transition-colors duration-100",
                       isSelected
                         ? "bg-accent text-accent-foreground"
                         : "text-foreground",
@@ -480,7 +498,7 @@ export function SpotlightSearchTrigger({
         {activeQuery ? (
           <span
             aria-hidden="true"
-            className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-primary ring-2 ring-background"
+            className="absolute top-1.5 end-1.5 size-1.5 rounded-full bg-primary ring-2 ring-background"
           />
         ) : null}
       </Button>
