@@ -1,7 +1,7 @@
 {
   "name": "flaremo",
   "license": "AGPL-3.0-only",
-  "version": "0.30.0",
+  "version": "0.30.2",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.7.0",
@@ -53,9 +53,10 @@
     "migrate:local": "wrangler d1 migrations apply DB --local --config ./wrangler.jsonc",
     "migrate:remote": "wrangler d1 migrations apply DB --remote --config ./wrangler.jsonc",
     "deploy:dry-run": "pnpm --filter @flaremo/web build && wrangler deploy --config ./wrangler.jsonc --dry-run",
+    "deploy:bundle-check": "wrangler deploy --config ./wrangler.jsonc --dry-run",
     "startup-graph": "node scripts/startup-graph.mjs",
     "deploy:dry-run:site": "pnpm build:site && wrangler deploy --config ./apps/site/wrangler.jsonc --dry-run",
-    "deploy": "pnpm deploy:preflight && pnpm --filter @flaremo/web build && pnpm migrate:remote && pnpm --filter @flaremo/worker deploy",
+    "deploy": "pnpm deploy:preflight && pnpm --filter @flaremo/web build && pnpm deploy:bundle-check && pnpm migrate:remote && pnpm --filter @flaremo/worker deploy",
     "deploy:site": "pnpm build:site && wrangler deploy --config ./apps/site/wrangler.jsonc"
   },
   "cloudflare": {

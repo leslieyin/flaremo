@@ -116,6 +116,8 @@ const messages = {
   "search.semanticToggle": "Semantic search",
   "search.taskResults": "Tasks",
   "search.clear": "Clear search",
+  "search.remoteUnavailable":
+    "Global search is unavailable. Showing local matches only.",
   "filter.clearTag": "Remove tag filter: {tag}",
   "filter.clearUntagged": "Remove untagged filter",
   "search.globalScope": "Searching timeline and archive",
@@ -299,6 +301,7 @@ const messages = {
   "explorer.expand": "Expand",
   "explorer.collapse": "Collapse",
   "explorer.noTags": "No tags yet — start organizing with #tag",
+  "explorer.loadFailed": "Could not load sidebar data",
   "explorer.untagged": "Untagged",
   "explorer.renameTag": "Rename tag",
   "explorer.deleteTag": "Delete tag",
@@ -349,6 +352,8 @@ const messages = {
   "explorer.nextPeriod": "Next period",
   "explorer.yearTitle": "{year}",
   "explorer.notesCount": "{count} notes",
+  "explorer.hourlyScopeFallback":
+    "Hourly detail is unavailable for the selected space. {count} notes in this {period}.",
   "explorer.noRecords": "No notes",
   "explorer.periodNight": "Night (00-06)",
   "explorer.periodMorning": "Morning (06-12)",
@@ -417,6 +422,8 @@ const messages = {
   "auth.brandTitle": "A quiet home for everything you know.",
   "auth.forgotPasswordHint": "Forgot your password?",
   "auth.password": "Password",
+  "auth.showPassword": "Show password",
+  "auth.hidePassword": "Hide password",
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in…",
   "auth.confirmingSession": "Signed in, opening your workspace…",
@@ -549,9 +556,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "Also manage members, plugins and maintenance. Only use it for instance provisioning.",
   "auth.tokenExpiry": "Expires in days",
+  "auth.tokenExpiryHint":
+    "Leave blank for the 365-day default, or enter 1–365 days. You can opt into a non-expiring token only with notes scope.",
+  "auth.tokenPermanent": "Permanent (notes-only, no automatic expiry)",
   "auth.never": "Never",
   "auth.tokenValidation":
-    "Enter a name and leave expiry blank or enter a whole number from 1 to 365.",
+    "Enter a name, then leave expiry blank for 365 days, enter a whole number from 1 to 365, or choose permanent for a notes-only token.",
   "auth.createToken": "Create token",
   "auth.creatingToken": "Creating…",
   "auth.tokenCreateFailed": "Could not create the token.",

@@ -120,6 +120,8 @@ const messages = {
   "search.semanticToggle": "Búsqueda semántica",
   "search.taskResults": "Tareas",
   "search.clear": "Borrar la búsqueda",
+  "search.remoteUnavailable":
+    "La búsqueda global no está disponible. Solo se muestran las coincidencias locales.",
   "filter.clearTag": "Quitar el filtro de etiqueta: {tag}",
   "filter.clearUntagged": "Quitar el filtro de sin etiqueta",
   "search.globalScope": "Buscando en la línea de tiempo y el archivo",
@@ -304,6 +306,7 @@ const messages = {
   "explorer.expand": "Expandir",
   "explorer.collapse": "Contraer",
   "explorer.noTags": "Aún no hay etiquetas — empieza a organizar con #etiqueta",
+  "explorer.loadFailed": "No se pudieron cargar los datos de la barra lateral",
   "explorer.untagged": "Sin etiqueta",
   "explorer.renameTag": "Renombrar etiqueta",
   "explorer.deleteTag": "Eliminar etiqueta",
@@ -355,6 +358,8 @@ const messages = {
   "explorer.nextPeriod": "Periodo siguiente",
   "explorer.yearTitle": "{year}",
   "explorer.notesCount": "{count} notas",
+  "explorer.hourlyScopeFallback":
+    "El detalle por horas no está disponible para el espacio seleccionado. {count} notas en esta {period}.",
   "explorer.noRecords": "Sin notas",
   "explorer.periodNight": "Madrugada (00-06)",
   "explorer.periodMorning": "Mañana (06-12)",
@@ -425,6 +430,8 @@ const messages = {
   "auth.brandTitle": "Un hogar tranquilo para todo lo que sabes.",
   "auth.forgotPasswordHint": "¿Olvidaste tu contraseña?",
   "auth.password": "Contraseña",
+  "auth.showPassword": "Mostrar contraseña",
+  "auth.hidePassword": "Ocultar contraseña",
   "auth.signIn": "Iniciar sesión",
   "auth.signingIn": "Iniciando sesión…",
   "auth.confirmingSession": "Sesión iniciada, abriendo tu espacio…",
@@ -558,9 +565,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "Gestionar también miembros, plugins y mantenimiento. Solo para aprovisionar la instancia.",
   "auth.tokenExpiry": "Vigencia (días)",
+  "auth.tokenExpiryHint":
+    "Déjalo vacío para 365 días o escribe de 1 a 365 días. La vigencia permanente solo está disponible para tokens con ámbito de notas.",
+  "auth.tokenPermanent": "Permanente (solo notas, sin caducidad automática)",
   "auth.never": "Nunca",
   "auth.tokenValidation":
-    "Escribe un nombre; deja la vigencia vacía o escribe un entero de 1 a 365.",
+    "Escribe un nombre; deja la vigencia vacía para 365 días, escribe de 1 a 365 o elige permanente para un token de solo notas.",
   "auth.createToken": "Crear token",
   "auth.creatingToken": "Creando…",
   "auth.tokenCreateFailed": "No se pudo crear el token.",

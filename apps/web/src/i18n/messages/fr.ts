@@ -119,6 +119,8 @@ const messages = {
   "search.semanticToggle": "Recherche sémantique",
   "search.taskResults": "Tâches",
   "search.clear": "Effacer la recherche",
+  "search.remoteUnavailable":
+    "La recherche globale est indisponible. Seuls les résultats locaux sont affichés.",
   "filter.clearTag": "Retirer le filtre de tag : {tag}",
   "filter.clearUntagged": "Retirer le filtre « sans tag »",
   "search.globalScope": "Recherche dans la chronologie et les archives",
@@ -304,6 +306,8 @@ const messages = {
   "explorer.expand": "Déplier",
   "explorer.collapse": "Replier",
   "explorer.noTags": "Pas encore de tags — commencez avec #tag",
+  "explorer.loadFailed":
+    "Impossible de charger les données de la barre latérale",
   "explorer.untagged": "Sans tag",
   "explorer.renameTag": "Renommer le tag",
   "explorer.deleteTag": "Supprimer le tag",
@@ -356,6 +360,8 @@ const messages = {
   "explorer.nextPeriod": "Période suivante",
   "explorer.yearTitle": "{year}",
   "explorer.notesCount": "{count} notes",
+  "explorer.hourlyScopeFallback":
+    "Le détail horaire n’est pas disponible pour l’espace sélectionné. {count} notes pour cette {period}.",
   "explorer.noRecords": "Aucune note",
   "explorer.periodNight": "Nuit (00-06)",
   "explorer.periodMorning": "Matin (06-12)",
@@ -426,6 +432,8 @@ const messages = {
   "auth.brandTitle": "Un foyer silencieux pour tout ce que vous savez.",
   "auth.forgotPasswordHint": "Mot de passe oublié ?",
   "auth.password": "Mot de passe",
+  "auth.showPassword": "Afficher le mot de passe",
+  "auth.hidePassword": "Masquer le mot de passe",
   "auth.signIn": "Se connecter",
   "auth.signingIn": "Connexion…",
   "auth.confirmingSession": "Connexion réussie, ouverture de votre espace…",
@@ -563,9 +571,13 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "Gérer aussi les membres, extensions et maintenance. À réserver au provisioning de l'instance.",
   "auth.tokenExpiry": "Validité (jours)",
+  "auth.tokenExpiryHint":
+    "Laissez vide pour 365 jours, ou saisissez 1 à 365 jours. La validité permanente est réservée aux jetons limités aux notes.",
+  "auth.tokenPermanent":
+    "Permanent (notes uniquement, sans expiration automatique)",
   "auth.never": "Jamais",
   "auth.tokenValidation":
-    "Saisissez un nom ; laissez la validité vide ou entrez un entier de 1 à 365.",
+    "Saisissez un nom ; laissez la validité vide pour 365 jours, entrez 1 à 365, ou choisissez permanent pour un jeton limité aux notes.",
   "auth.createToken": "Créer le jeton",
   "auth.creatingToken": "Création…",
   "auth.tokenCreateFailed": "Impossible de créer le jeton.",

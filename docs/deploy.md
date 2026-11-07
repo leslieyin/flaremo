@@ -81,7 +81,7 @@ pnpm exec wrangler r2 bucket create flaremo-attachments
 
 手动创建时需要把 D1 输出的 `database_id` 写入 `wrangler.jsonc`；bucket、queue 和 Vectorize index 名称可以保留为建议默认值。
 
-部署；这个命令会先构建前端、应用远端 migrations，再发布 Worker：
+部署；这个命令会先构建前端并做 Worker bundle dry-run，再应用远端 migrations，最后发布 Worker：
 
 ```bash
 pnpm deploy
@@ -107,7 +107,7 @@ store，首次部署后由部署者用 `wrangler secret put` 配置。本地手�
 
 ## Better Auth 原生认证
 
-FlareMo 的应用层认证由 Better Auth 提供。当前是“单用户完整能力、多用户数据地基”模型：首次部署通过一次性 bootstrap 创建用户名、显示名、邮箱和密码，之后关闭公共 signup。浏览器使用 `HttpOnly`、`SameSite=Lax` cookie session；脚本、MCP 和 Memos-compatible 客户端使用由已登录账户创建的可撤销 `memos_pat_` PAT。PAT 默认只有笔记范围（`notes`），可访问 `/api/app/admin/*` 的令牌必须在创建时显式选择 `admin`；有效期默认 90 天（1–365 天），创建后不可再延长，过期需重新创建。
+FlareMo 的应用层认证由 Better Auth 提供。当前是“单用户完整能力、多用户数据地基”模型：首次部署通过一次性 bootstrap 创建用户名、显示名、邮箱和密码，之后关闭公共 signup。浏览器使用 `HttpOnly`、`SameSite=Lax` cookie session；脚本、MCP 和 Memos-compatible 客户端使用由已登录账户创建的可撤销 `memos_pat_` PAT。PAT 默认只有笔记范围（`notes`），可访问 `/api/app/admin/*` 的令牌必须在创建时显式选择 `admin`；有效期默认 365 天（1–365 天），仅 `notes` 令牌可显式选择永久有效，`admin` 令牌最长 365 天。创建后不可再修改，过期需重新创建。
 
 Cloudflare Access 可以作为额外的外层防线，但 Access 身份或 Access Service Token 不会自动映射为 FlareMo 用户。启用 Access 时必须同时满足外层 policy 和下面的应用层认证。
 
@@ -185,7 +185,7 @@ curl "$FLAREMO_URL/api/auth/flaremo/bootstrap/status"
 
 - `/api/auth/update-user`：修改用户名等 Better Auth 用户资料。
 - `/api/auth/change-password`：修改密码；密码修改时可以撤销其他 session。
-- `/api/app/account/personal-access-tokens`：在 cookie session 下创建、列出和撤销 `memos_pat_` PAT。创建体支持 `scopes`（`notes` 默认，或 `admin`）与 `expires_in_days`（默认 90，范围 1–365）。
+- `/api/app/account/personal-access-tokens`：在 cookie session 下创建、列出和撤销 `memos_pat_` PAT。创建体支持 `scopes`（`notes` 默认，或 `admin`）与 `expires_in_days`（缺省 365；1–365；显式 0 表示永久，仅允许 `notes`）。
 
 当前没有配置邮件 provider，因此 Better Auth 的普通 `request-password-reset` 邮件流程保持关闭；账户页提供的是“知道当前密码时修改密码”。如需忘记密码自助找回，应先接入真实 transactional email provider，再配置 Better Auth 的 `sendResetPassword` 和 reset 页面，不要把一个假的成功提示当作恢复能力。
 
@@ -296,7 +296,7 @@ D1 免费套餐按 UTC 自然日重置额度，其中 `rows_read` 是 **5M 行 /
 
 **怎么读实际用量。** Cloudflare Dashboard 里进入 D1 → 你的数据库 → Metrics，看 `rows read` 曲线；或者按上一小节配置一次 `pnpm setup:usage`，直接在账户页的用量面板看同一口径。面板数据有延迟，击穿后看到的数值未必是当时的峰值，判断余量时留出余量。付费套餐（Standard 起）没有这层限制。
 
-**升级到含聚合表的版本需要手动做什么：不需要。** 新增一张表和一个 migration，纯新增 + 回填，向后兼容——migration 只读 `memos`，不改动任何既有表或列，所以迁移期间和迁移之后旧版本 Worker 都能正常工作。`pnpm deploy` 的执行顺序是「构建前端 → 应用远端 migrations → 发布 Worker」，GitHub Action 手动部署（`Deploy to Cloudflare`）跑的是同一条命令，所以两条路径都会在发布新 Worker 之前先建好表；Workers Builds 的自动迁移见 [更新指南](./update.md)。不需要新增变量、binding 或 cron，也没有需要回填的数据——migration 已经把存量 memo 按 UTC 小时回填进聚合表，定时任务随后每天做一次全量校准。
+**升级到含聚合表的版本需要手动做什么：不需要。** 新增一张表和一个 migration，纯新增 + 回填，向后兼容——migration 只读 `memos`，不改动任何既有表或列，所以迁移期间和迁移之后旧版本 Worker 都能正常工作。`pnpm deploy` 的执行顺序是「构建前端 → Worker bundle dry-run → 应用远端 migrations → 发布 Worker」，GitHub Action 手动部署（`Deploy to Cloudflare`）跑的是同一条命令，所以两条路径都会在发布新 Worker 之前先建好表；Workers Builds 的自动迁移见 [更新指南](./update.md)。不需要新增变量、binding 或 cron，也没有需要回填的数据——migration 已经把存量 memo 按 UTC 小时回填进聚合表，定时任务随后每天做一次全量校准。
 
 ## Cloudflare Access（可选外层防线）
 

@@ -1,11 +1,9 @@
 import {
-  DEFAULT_MEMOS_PAT_EXPIRES_IN_DAYS,
-  DEFAULT_MEMOS_PAT_SCOPE,
   MAX_MEMOS_PAT_EXPIRES_IN_DAYS,
   MEMOS_PAT_SCOPES,
   type MemosPatScope,
-  memosPatPermissionsFor,
   memosPatScopesFromPermissions,
+  PERMANENT_MEMOS_PAT_EXPIRES_IN_DAYS,
 } from "@flaremo/contracts";
 import {
   beginFlaremoMemberRemoval,
@@ -37,18 +35,19 @@ import {
   sendEmailChangeVerificationEmail,
 } from "../email";
 import { jsonError } from "../http";
+import { createMemosPersonalAccessToken } from "../memos-compat/pat";
 import { zValidator } from "../validated";
 
 export const accountApi = new Hono<HonoBindings>();
 
 const createPersonalAccessTokenSchema = z.object({
   name: z.string().trim().min(1).max(32),
-  // null stays accepted for older clients; it now means "the default lifetime"
-  // instead of "never expires".
+  // null/omitted means the 365-day default; explicit 0 is the opt-in for a
+  // permanent notes-only token. Admin-scoped tokens reject 0 in the service.
   expires_in_days: z
     .number()
     .int()
-    .min(1)
+    .min(PERMANENT_MEMOS_PAT_EXPIRES_IN_DAYS)
     .max(MAX_MEMOS_PAT_EXPIRES_IN_DAYS)
     .nullable()
     .optional(),
@@ -88,17 +87,11 @@ accountApi.post(
       const input = c.req.valid("json");
       const { createFlareMoAuth } = await loadAuthFactory();
       const auth = createFlareMoAuth(c.env, context.db);
-      const scopes = input.scopes ?? [DEFAULT_MEMOS_PAT_SCOPE];
-      const expiresInDays =
-        input.expires_in_days ?? DEFAULT_MEMOS_PAT_EXPIRES_IN_DAYS;
-      const created = await auth.api.createApiKey({
-        body: {
-          configId: MEMOS_PAT_CONFIG_ID,
-          userId: context.authUserId,
-          name: input.name,
-          expiresIn: expiresInDays * 24 * 60 * 60,
-          permissions: memosPatPermissionsFor(scopes),
-        },
+      const created = await createMemosPersonalAccessToken(auth, {
+        userId: context.authUserId,
+        name: input.name,
+        expiresInDays: input.expires_in_days,
+        scopes: input.scopes,
       });
       const response = c.json(
         {

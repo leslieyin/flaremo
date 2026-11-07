@@ -10,6 +10,11 @@ import { bootstrapAndSignIn } from "./test-support/sign-in";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+function expiresInDays(value: string | null): number {
+  if (!value) throw new Error("expected a finite token expiry");
+  return (new Date(value).getTime() - Date.now()) / DAY_MS;
+}
+
 describe("personal access token scopes", () => {
   let runtime: TestRuntime | undefined;
 
@@ -18,6 +23,11 @@ describe("personal access token scopes", () => {
     runtime = undefined;
   });
 
+  function requireRuntime(): TestRuntime {
+    if (!runtime) throw new Error("test runtime was not initialized");
+    return runtime;
+  }
+
   async function createToken(
     cookie: string,
     body: Record<string, unknown>,
@@ -25,7 +35,7 @@ describe("personal access token scopes", () => {
     id: string;
     token: string;
     scopes: string[];
-    expires_at: string;
+    expires_at: string | null;
   }> {
     const response = await fetchWorker(
       new Request(
@@ -40,7 +50,7 @@ describe("personal access token scopes", () => {
           body: JSON.stringify(body),
         },
       ),
-      runtime!.env,
+      requireRuntime().env,
     );
     expect(response.status).toBe(201);
     const payload = (await response.json()) as {
@@ -48,7 +58,7 @@ describe("personal access token scopes", () => {
       personal_access_token: {
         id: string;
         scopes: string[];
-        expires_at: string;
+        expires_at: string | null;
       };
     };
     return {
@@ -69,19 +79,19 @@ describe("personal access token scopes", () => {
           ...(init?.headers ?? {}),
         },
       }),
-      runtime!.env,
+      requireRuntime().env,
     );
   }
 
-  it("defaults new tokens to notes scope and 90 days", async () => {
+  it("defaults new tokens to notes scope and 365 days", async () => {
     runtime = await createTestRuntime({ name: "flaremo-pat-scope-default" });
     const cookie = await bootstrapAndSignIn(runtime.env);
     const created = await createToken(cookie, { name: "notes-token" });
 
     expect(created.scopes).toEqual(["notes"]);
-    const days = (new Date(created.expires_at).getTime() - Date.now()) / DAY_MS;
-    expect(days).toBeGreaterThan(89);
-    expect(days).toBeLessThan(91);
+    const days = expiresInDays(created.expires_at);
+    expect(days).toBeGreaterThan(364);
+    expect(days).toBeLessThan(366);
 
     // The content API is inside the notes scope.
     const memo = await patRequest(created.token, "/api/v1/memos", {
@@ -99,6 +109,51 @@ describe("personal access token scopes", () => {
     expect(admin.status).toBe(403);
   });
 
+  it("lets a notes-only token opt into a permanent lifetime", async () => {
+    runtime = await createTestRuntime({ name: "flaremo-pat-scope-permanent" });
+    const cookie = await bootstrapAndSignIn(runtime.env);
+    const created = await createToken(cookie, {
+      name: "permanent-notes-token",
+      expires_in_days: 0,
+    });
+
+    expect(created.scopes).toEqual(["notes"]);
+    expect(created.expires_at).toBeNull();
+
+    const memo = await patRequest(created.token, "/api/v1/memos", {
+      method: "POST",
+      body: JSON.stringify({ content: "written by a permanent notes token" }),
+    });
+    expect(memo.status).toBe(200);
+  });
+
+  it("refuses a permanent lifetime for admin-scoped tokens", async () => {
+    runtime = await createTestRuntime({
+      name: "flaremo-pat-scope-admin-expiry",
+    });
+    const cookie = await bootstrapAndSignIn(runtime.env);
+    const response = await fetchWorker(
+      new Request(
+        "http://flaremo.test/api/app/account/personal-access-tokens",
+        {
+          method: "POST",
+          headers: {
+            cookie,
+            origin: "http://flaremo.test",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "bad-admin-token",
+            expires_in_days: 0,
+            scopes: ["admin"],
+          }),
+        },
+      ),
+      requireRuntime().env,
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("lets an admin-scoped token reach the admin surface", async () => {
     runtime = await createTestRuntime({ name: "flaremo-pat-scope-admin" });
     const cookie = await bootstrapAndSignIn(runtime.env);
@@ -108,7 +163,7 @@ describe("personal access token scopes", () => {
       expires_in_days: 7,
     });
     expect(created.scopes).toContain("admin");
-    const days = (new Date(created.expires_at).getTime() - Date.now()) / DAY_MS;
+    const days = expiresInDays(created.expires_at);
     expect(days).toBeGreaterThan(6);
     expect(days).toBeLessThan(8);
 

@@ -115,6 +115,8 @@ const messages = {
   "search.semanticToggle": "セマンティック検索",
   "search.taskResults": "タスク",
   "search.clear": "検索をクリア",
+  "search.remoteUnavailable":
+    "グローバル検索を利用できません。ローカルの一致結果のみ表示しています。",
   "filter.clearTag": "タグフィルターを解除：{tag}",
   "filter.clearUntagged": "タグなしフィルターを解除",
   "search.globalScope": "タイムラインとアーカイブを検索しています",
@@ -300,6 +302,7 @@ const messages = {
   "explorer.expand": "展開",
   "explorer.collapse": "折りたたむ",
   "explorer.noTags": "タグがまだありません。#タグ で整理を始めましょう",
+  "explorer.loadFailed": "サイドバーデータを読み込めませんでした",
   "explorer.untagged": "タグなし",
   "explorer.renameTag": "タグを名前変更",
   "explorer.deleteTag": "タグを削除",
@@ -348,6 +351,8 @@ const messages = {
   "explorer.nextPeriod": "次の期間",
   "explorer.yearTitle": "{year}年",
   "explorer.notesCount": "{count} 件のノート",
+  "explorer.hourlyScopeFallback":
+    "選択したスペースでは時間別の内訳を表示できません。現在の{period}は {count} 件です。",
   "explorer.noRecords": "記録なし",
   "explorer.periodNight": "夜間 (00-06)",
   "explorer.periodMorning": "朝 (06-12)",
@@ -417,6 +422,8 @@ const messages = {
   "auth.brandTitle": "知っていることを、静かにしまっておく場所。",
   "auth.forgotPasswordHint": "パスワードをお忘れですか？",
   "auth.password": "パスワード",
+  "auth.showPassword": "パスワードを表示",
+  "auth.hidePassword": "パスワードを隠す",
   "auth.signIn": "サインイン",
   "auth.signingIn": "サインイン中…",
   "auth.confirmingSession": "サインインしました。ワークスペースを開いています…",
@@ -551,9 +558,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "メンバー・プラグイン・メンテナンスも管理できます。インスタンスの運用時のみ使用してください。",
   "auth.tokenExpiry": "有効期間（日）",
+  "auth.tokenExpiryHint":
+    "空欄なら 365 日、1〜365 日も指定できます。無期限はノート権限のトークンのみ選択できます。",
+  "auth.tokenPermanent": "無期限（ノート権限のみ、自動失効なし）",
   "auth.never": "無期限",
   "auth.tokenValidation":
-    "名前を入力し、有効期間は空欄または 1〜365 の整数で入力してください。",
+    "名前を入力し、有効期間は空欄（365 日）、1〜365 の整数、またはノート権限のみ無期限を選択してください。",
   "auth.createToken": "トークンを作成",
   "auth.creatingToken": "作成中…",
   "auth.tokenCreateFailed": "トークンを作成できませんでした。",

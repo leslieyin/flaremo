@@ -118,6 +118,8 @@ const messages = {
   "search.semanticToggle": "Семантический поиск",
   "search.taskResults": "Задачи",
   "search.clear": "Очистить поиск",
+  "search.remoteUnavailable":
+    "Глобальный поиск недоступен. Показаны только локальные совпадения.",
   "filter.clearTag": "Убрать фильтр по тегу: {tag}",
   "filter.clearUntagged": "Убрать фильтр «без тега»",
   "search.globalScope": "Ищем в ленте и архиве",
@@ -302,6 +304,7 @@ const messages = {
   "explorer.expand": "Развернуть",
   "explorer.collapse": "Свернуть",
   "explorer.noTags": "Тегов пока нет — начните с #тег",
+  "explorer.loadFailed": "Не удалось загрузить данные боковой панели",
   "explorer.untagged": "Без тега",
   "explorer.renameTag": "Переименовать тег",
   "explorer.deleteTag": "Удалить тег",
@@ -351,6 +354,8 @@ const messages = {
   "explorer.nextPeriod": "Следующий период",
   "explorer.yearTitle": "{year}",
   "explorer.notesCount": "{count} заметок",
+  "explorer.hourlyScopeFallback":
+    "Для выбранного пространства недоступна разбивка по часам. Записей за этот {period}: {count}.",
   "explorer.noRecords": "Нет заметок",
   "explorer.periodNight": "Ночь (00-06)",
   "explorer.periodMorning": "Утро (06-12)",
@@ -420,6 +425,8 @@ const messages = {
   "auth.brandTitle": "Тихий дом для всего, что вы знаете.",
   "auth.forgotPasswordHint": "Забыли пароль?",
   "auth.password": "Пароль",
+  "auth.showPassword": "Показать пароль",
+  "auth.hidePassword": "Скрыть пароль",
   "auth.signIn": "Войти",
   "auth.signingIn": "Вход…",
   "auth.confirmingSession": "Вы вошли, открываем ваше рабочее пространство…",
@@ -553,9 +560,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "Управлять участниками, плагинами и обслуживанием. Только для развёртывания экземпляра.",
   "auth.tokenExpiry": "Срок действия (дней)",
+  "auth.tokenExpiryHint":
+    "Оставьте пустым для 365 дней или укажите 1–365 дней. Бессрочный срок доступен только токенам с доступом к заметкам.",
+  "auth.tokenPermanent": "Бессрочно (только заметки, без автоистечения)",
   "auth.never": "Никогда",
   "auth.tokenValidation":
-    "Укажите название; срок оставьте пустым или введите целое число от 1 до 365.",
+    "Укажите название; срок можно оставить пустым (365 дней), ввести от 1 до 365 или выбрать бессрочный вариант для токена с доступом к заметкам.",
   "auth.createToken": "Создать токен",
   "auth.creatingToken": "Создание…",
   "auth.tokenCreateFailed": "Не удалось создать токен.",

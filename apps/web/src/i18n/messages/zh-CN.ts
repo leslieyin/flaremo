@@ -109,6 +109,7 @@ const messages = {
   "search.semanticToggle": "语义搜索",
   "search.taskResults": "任务",
   "search.clear": "清除搜索",
+  "search.remoteUnavailable": "全局搜索暂不可用，当前仅显示本地匹配结果",
   "filter.clearTag": "移除标签筛选：{tag}",
   "filter.clearUntagged": "移除无标签筛选",
   "search.globalScope": "正在搜索时间线和归档",
@@ -276,6 +277,7 @@ const messages = {
   "explorer.expand": "展开",
   "explorer.collapse": "折叠",
   "explorer.noTags": "还没有标签，用 #标签 开始整理",
+  "explorer.loadFailed": "侧栏数据加载失败",
   "explorer.untagged": "无标签",
   "explorer.renameTag": "重命名标签",
   "explorer.deleteTag": "删除标签",
@@ -322,6 +324,8 @@ const messages = {
   "explorer.nextPeriod": "下一期",
   "explorer.yearTitle": "{year}年",
   "explorer.notesCount": "{count} 条记录",
+  "explorer.hourlyScopeFallback":
+    "所选空间暂不提供小时明细；当前{period}共 {count} 条记录。",
   "explorer.noRecords": "无记录",
   "explorer.periodNight": "夜间 (00-06)",
   "explorer.periodMorning": "早晨 (06-12)",
@@ -388,6 +392,8 @@ const messages = {
   "auth.brandTitle": "给已知的一切，一个安静的家。",
   "auth.forgotPasswordHint": "忘记密码？",
   "auth.password": "密码",
+  "auth.showPassword": "显示密码",
+  "auth.hidePassword": "隐藏密码",
   "auth.signIn": "登录",
   "auth.signingIn": "正在登录…",
   "auth.confirmingSession": "已登录，正在进入工作区…",
@@ -510,8 +516,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "同时管理成员、插件与维护端点，仅在实例运维时使用。",
   "auth.tokenExpiry": "有效期（天）",
+  "auth.tokenExpiryHint":
+    "留空默认 365 天，也可填 1–365 天；只有仅笔记权限的令牌可选择永久有效。",
+  "auth.tokenPermanent": "永久有效（仅笔记权限，不自动过期）",
   "auth.never": "永不过期",
-  "auth.tokenValidation": "有效期需为 1–365 天的整数。",
+  "auth.tokenValidation":
+    "请填写名称；有效期可留空（默认 365 天）、填 1–365 天，或仅在笔记权限下选择永久有效。",
   "auth.createToken": "创建令牌",
   "auth.creatingToken": "正在创建…",
   "auth.tokenCreateFailed": "无法创建令牌。",

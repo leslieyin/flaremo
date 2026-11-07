@@ -114,6 +114,8 @@ const messages = {
   "search.semanticToggle": "البحث الدلالي",
   "search.taskResults": "المهام",
   "search.clear": "مسح البحث",
+  "search.remoteUnavailable":
+    "البحث الشامل غير متاح. تُعرض المطابقات المحلية فقط.",
   "filter.clearTag": "إزالة مرشّح الوسم: {tag}",
   "filter.clearUntagged": "إزالة مرشّح «بلا وسم»",
   "search.globalScope": "جارٍ البحث في الخط الزمني والأرشيف",
@@ -294,6 +296,7 @@ const messages = {
   "explorer.expand": "توسيع",
   "explorer.collapse": "طي",
   "explorer.noTags": "لا وسوم بعد — ابدأ التنظيم بوسم #",
+  "explorer.loadFailed": "تعذّر تحميل بيانات الشريط الجانبي",
   "explorer.untagged": "بلا وسم",
   "explorer.renameTag": "إعادة تسمية الوسم",
   "explorer.deleteTag": "حذف الوسم",
@@ -343,6 +346,8 @@ const messages = {
   "explorer.nextPeriod": "الفترة التالية",
   "explorer.yearTitle": "{year}",
   "explorer.notesCount": "{count} ملاحظات",
+  "explorer.hourlyScopeFallback":
+    "تفاصيل الساعات غير متاحة للمساحة المحددة. عدد الملاحظات في هذا {period}: {count}.",
   "explorer.noRecords": "لا توجد ملاحظات",
   "explorer.periodNight": "الليل (00-06)",
   "explorer.periodMorning": "الصباح (06-12)",
@@ -409,6 +414,8 @@ const messages = {
   "auth.brandTitle": "منزل هادئ لكل ما تعرفه.",
   "auth.forgotPasswordHint": "نسيت كلمة المرور؟",
   "auth.password": "كلمة المرور",
+  "auth.showPassword": "إظهار كلمة المرور",
+  "auth.hidePassword": "إخفاء كلمة المرور",
   "auth.signIn": "تسجيل الدخول",
   "auth.signingIn": "جارٍ تسجيل الدخول…",
   "auth.confirmingSession": "تم تسجيل الدخول، جارٍ فتح مساحة العمل…",
@@ -540,9 +547,12 @@ const messages = {
   "auth.tokenScopeAdminHint":
     "إدارة الأعضاء والإضافات والصيانة أيضًا. استخدمه لتجهيز النسخة فقط.",
   "auth.tokenExpiry": "الصلاحية (أيام)",
+  "auth.tokenExpiryHint":
+    "اتركه فارغًا لمدة 365 يومًا أو أدخل من 1 إلى 365 يومًا. الصلاحية الدائمة متاحة فقط للرموز ذات صلاحية الملاحظات.",
+  "auth.tokenPermanent": "دائم (الملاحظات فقط، من دون انتهاء تلقائي)",
   "auth.never": "أبدًا",
   "auth.tokenValidation":
-    "أدخل اسمًا؛ واترك الصلاحية فارغة أو أدخل عددًا صحيحًا من 1 إلى 365.",
+    "أدخل اسمًا؛ واترك الصلاحية فارغة لمدة 365 يومًا أو أدخل من 1 إلى 365 يومًا، أو اختر الدائم لرمز الملاحظات فقط.",
   "auth.createToken": "إنشاء رمز",
   "auth.creatingToken": "جارٍ الإنشاء…",
   "auth.tokenCreateFailed": "تعذر إنشاء الرمز.",

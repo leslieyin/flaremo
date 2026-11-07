@@ -184,7 +184,7 @@ Better Auth 是 FlareMo 的应用层认证事实源，按请求使用当前 Work
 
 PAT 由 cookie session 或 Better Auth session bearer 下的账户接口创建、列出和撤销，明文只在创建响应返回一次；`memos_pat_` 本身只能访问私有业务数据，不能调用账户 PAT 管理接口。`memos_pat_` 是 FlareMo-native credential，用于保护当前兼容 API 子集，不代表 Memos Server 的完整 auth parity。
 
-新创建的 PAT 带权限范围与有效期：`notes` 覆盖笔记、待办、文章、附件与 MCP（含写入），`admin` 额外覆盖 `/api/app/admin/*` 管理面；创建时默认 90 天、允许 1–365 天。Worker 在每个 PAT 请求上校验 scope，`/api/app/admin/*` 只接受 admin scope。升级前创建的旧令牌在 `auth_apikeys.permissions` 为空，保持完全访问以兼容既有脚本，但在账户页显示为“笔记 + 管理”，应尽快重新创建为最小权限令牌。
+新创建的 PAT 带权限范围与有效期：`notes` 覆盖笔记、待办、文章、附件与 MCP（含写入），`admin` 额外覆盖 `/api/app/admin/*` 管理面；创建时默认 365 天、允许 1–365 天；仅 notes 令牌可显式选择永久有效，admin 令牌最长 365 天。Worker 在每个 PAT 请求上校验 scope，`/api/app/admin/*` 只接受 admin scope。升级前创建的旧令牌在 `auth_apikeys.permissions` 为空，保持完全访问以兼容既有脚本，但在账户页显示为“笔记 + 管理”，应尽快重新创建为最小权限令牌。
 
 邮件能力是可选 seam（`FLAREMO_EMAIL_PROVIDER`）：`none`（自托管默认，零配置）或 `cloudflare`（Workers Paid 的 `EMAIL` binding）。provider 为 `cloudflare` 时，浏览器注册强制邮箱验证（24 小时一次性 token），并解锁三个自助流程：重发验证邮件、邮件找回密码（1 小时 token，走 Better Auth 原生 reset-password，成功后撤销全部 session）、换邮箱验证新地址（确认前旧邮箱继续有效）。此时 Memos 兼容注册面（current `/api/v1/auth/signup`、Connect `AuthService.SignUp`）返回 403，因为兼容客户端无法完成邮箱验证流程。provider 为 `none` 时这些流程全部退回原行为：注册不验证邮箱、密码恢复走管理员兜底（owner 在后台为成员生成一次性重置链接，`auth_verifications` 存 token，用户自行设密，管理员不接触明文）；owner 自己忘记密码时，可用独立 `FLAREMO_RECOVERY_SECRET` 走 `/recover` 页面进入 Better Auth reset-password 流程。恢复成功后撤销全部 session 和 PAT，不创建第二个用户。该 secret 不是登录凭据，恢复结束后必须立即轮换或删除。
 
@@ -267,7 +267,7 @@ Authorization: Bearer <memos_pat_...>
 - 为 FlareMo 暴露的 `/api/v1` 维护 OpenAPI 文档。
 - 基于 OpenAPI 暴露 MCP endpoint。
 - 响应字段在支持范围内保持 Memos-compatible。
-- UserService webhook 资源的 CRUD/signing-secret 已进入兼容层；四类 memo 事件已有 D1 outbox 的有界异步投递/重试，完整上游事件语义、egress SSRF 防护和完整多用户 ACL 仍是未完成边界。
+- UserService webhook 资源的 CRUD/signing-secret 已进入兼容层；四类 memo 事件已有 D1 outbox 的有界异步投递/重试；出站 webhook/插件/链接元数据/Push 已接入逐跳 SSRF 校验与响应上限，完整上游事件语义和完整多用户 ACL 仍是未完成边界。
 - current camelCase wire、Better Auth-backed identity、native JWT/refresh facade、字段/错误翻译、PAT/social 资源、UserService webhook/notification 资源子集、Connect JSON/protobuf/gRPC-Web unary subset、heartbeat SSE 和根 `/mcp` 无状态 Streamable HTTP MCP 子集已实现并有仓库测试；这些仍不等于完整 Memos Server、原生 HTTP/2 gRPC 或第三方客户端 parity。
 
 ### 兼容边界
