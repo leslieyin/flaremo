@@ -1115,6 +1115,76 @@ const messages = {
   "review.doneWeek": "This week you wrote {count} new notes.",
   "review.doneWeekEmpty":
     "No new notes this week yet. Why not write one today?",
+  "settings.nav.connectedApps": "Connected apps",
+  "connect.title": "Approve a pairing",
+  "connect.description":
+    "Your client shows an 8-character pairing code. Enter it to let the app access FlareMo as you.",
+  "connect.codeLabel": "Pairing code",
+  "connect.codePlaceholder": "XXXX-XXXX",
+  "connect.codeHint": "8 letters or digits, without 0, O, 1 or I.",
+  "connect.submit": "Approve pairing",
+  "connect.submitting": "Approving…",
+  "connect.approvedTitle": "Pairing approved",
+  "connect.approvedDescription": "“{name}” can now access your FlareMo.",
+  "connect.grantedScopes": "Granted access",
+  "connect.manageApps": "Manage connected apps",
+  "connect.errorIncomplete":
+    "A pairing code has 8 characters — check for a missing one.",
+  "connect.errorNotFound":
+    "We couldn't find that pairing code. Check it and try again.",
+  "connect.errorExpired":
+    "That pairing code has expired. Start pairing again from your client.",
+  "connect.errorUsed":
+    "That pairing code was already used. Start pairing again from your client.",
+  "connect.errorSession": "Your session has expired. Sign in again and retry.",
+  "connect.errorFailed": "Pairing didn't go through. Try again in a moment.",
+  "connect.scope.notes": "Notes",
+  "connect.scope.admin": "Management",
+  "connect.scope.notesDetail":
+    "Read and write notes, tasks, articles, attachments and MCP tools.",
+  "connect.scope.adminDetail":
+    "Also manage members, plugins and instance maintenance.",
+  "connect.appsTitle": "Connected apps",
+  "connect.appsFooter":
+    "Your client provides the pairing link. Revoking cuts access immediately; reconnecting needs a new pairing.",
+  "connect.appsEmptyTitle": "No connected apps yet",
+  "connect.appsEmptyDescription":
+    "Pair from a client and approve it, and it will show up here with its access.",
+  "connect.lastUsed": "Last used {date}",
+  "connect.neverUsed": "Not used yet",
+  "connect.revoke": "Revoke",
+  "connect.revokeTitle": "Revoke “{name}”?",
+  "connect.revokeDescription":
+    "It loses access immediately and must pair again to reconnect.",
+  "connect.revokedToast": "Revoked “{name}”",
+  "connect.revokeFailed": "Couldn't revoke the app. Try again.",
+  "connect.status.expired": "Expired",
+  "connect.clientType.device": "Device",
+  "connect.clientType.web": "Web",
+  "connect.clientType.script": "Script",
+  "connect.clientType.manual": "Manual token",
+  "insight.title": "AI insight",
+  "insight.description":
+    "Let a connected AI client read this note and return a short insight.",
+  "insight.generate": "Generate insight",
+  "insight.creating": "Submitting…",
+  "insight.pending": "Waiting for the AI client…",
+  "insight.pendingHint": "Usually back within a minute.",
+  "insight.timeoutTitle": "No result yet",
+  "insight.timeoutDescription":
+    "An AI client may not have picked the task up yet.",
+  "insight.checkAgain": "Check again",
+  "insight.failedTitle": "Insight failed",
+  "insight.failedFallback": "The AI client didn't report a reason.",
+  "insight.loadFailed": "Couldn't load the insight. Try again.",
+  "insight.retry": "Retry",
+  "insight.delete": "Delete",
+  "insight.deleteTitle": "Delete this insight?",
+  "insight.deleteDescription": "This can't be undone.",
+  "insight.deleted": "Insight deleted",
+  "insight.emptyResult": "The AI client returned an empty result.",
+  "insight.createFailed": "Couldn't create the insight task. Try again later.",
+  "insight.deleteFailed": "Couldn't delete the insight. Try again.",
 } as const;
 
 export const enUS = messages satisfies Record<TranslationKey, string>;

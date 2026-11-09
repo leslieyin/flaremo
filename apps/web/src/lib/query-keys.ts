@@ -90,6 +90,12 @@ export const queryKeys = {
     detail: (articleId: string) => ["article", articleId] as const,
   },
   personalAccessTokens: ["personal-access-tokens"] as const,
+  connectedApps: ["connected-apps"] as const,
+  /** AI insight tasks; the detail key is per task id (polled on the memo page). */
+  insights: {
+    all: ["insights"] as const,
+    detail: (insightId: string) => ["insights", insightId] as const,
+  },
   authBootstrapStatus: ["auth-bootstrap-status"] as const,
   authRegistrationStatus: ["auth-registration-status"] as const,
   authProviders: ["auth-providers"] as const,
